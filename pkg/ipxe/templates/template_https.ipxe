@@ -1,0 +1,56 @@
+#!ipxe
+{{- $ImageDisplayName:=.ImageName}}
+{{- $BootLogo:="BOOT_LOGO-UNSET"}}
+{{- $ImagesList:= ""}}
+
+# menu
+set menu-default {{.ImageName}}
+set menu-timeout 2000
+
+# display-name
+isset ${hostname} && set display-name ${hostname} || set display-name ${mac}
+
+# logo
+#console --picture {{$BootLogo}}
+
+# start
+:start
+menu Boot Options for ${mac}
+item --gap -- -------------------- Images --------------------
+item {{.ImageName}} {{$ImageDisplayName}}
+
+item --gap -- ------------- Tools and Utilities --------------
+item xyz	Netboot.XYZ (OS Installers, Memtest)
+item shell    	Enter iPXE shell
+item reboot     Reboot system
+choose --timeout ${menu-timeout} --default ${menu-default} selected || goto cancel
+set menu-timeout 0
+goto ${selected}
+
+# retry
+:retry
+echo Boot failed, rebooting
+sleep 3
+reboot
+
+# image boot
+:{{.ImageName}}
+echo Booting {{$ImageDisplayName}} from https
+set conn_type https
+boot --name {{$ImageDisplayName}} --autofree {{.ImageUrlHttps}} || echo HTTPS failed... attempting HTTP...
+
+set conn_type http
+boot --name {{$ImageDisplayName}} --autofree {{.ImageUrlHttp}} || goto retry
+
+:xyz
+chain --autofree https://boot.netboot.xyz
+
+:shell
+echo Type 'exit' to get the back to the menu
+shell
+set menu-timeout 0
+set submenu-timeout 0
+goto start
+
+:reboot
+reboot

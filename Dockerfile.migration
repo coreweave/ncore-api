@@ -1,0 +1,22 @@
+FROM golang:1.19 as tern
+
+RUN go install github.com/jackc/tern/v2@v2.0.1
+
+FROM ubuntu:jammy-20230301
+
+RUN apt update && apt install -y postgresql-client
+
+RUN useradd -u 65532 -U nonroot
+
+USER nonroot
+
+COPY --from=tern /go /usr/local/go
+
+COPY migrations /migrations
+
+COPY ./scripts/init-migrate.sh .
+
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+ENTRYPOINT ["/init-migrate.sh"]
+
