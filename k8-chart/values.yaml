@@ -1,0 +1,47 @@
+# ncore-api--begin
+databases:
+  - payloads
+  - ipxe
+
+image:
+  repository: registry/ncore-api
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: develop #will eventually pull master:commit or master:latest when available
+
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+
+ipxe:
+  templateFilePath: /templates
+  defaultTemplate: ramdisk_http.ipxe
+
+# -- end --
+# postgres--begin
+postgresql:
+  postgresqlUsername: postgresUsername
+  image:
+    tag: 15.1.0
+  auth:
+    existingSecret: postgres-role-postgresUsername
+  primary:
+    extendedConfiguration: |-
+      max_connections = 500
+      tcp_keepalives_idle = 60
+      tcp_keepalives_count = 5
+      tcp_keepalives_interval = 10
+# -- end --

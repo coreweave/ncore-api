@@ -1,0 +1,11 @@
+apiVersion: v2
+name: ncore-api
+description: CoreWeave deployment of internal api
+type: application
+version: 0.1.0
+appVersion: "0.0.1"
+
+dependencies:
+  - name: postgresql
+    version: ~12.1.13
+    repository: https://charts.bitnami.com/bitnami

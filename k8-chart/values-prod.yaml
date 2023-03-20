@@ -1,0 +1,23 @@
+
+resources:
+  requests:
+    cpu: 8
+    memory: 2Gi
+
+postgresql:
+  primary:
+    persistence:
+      size: 32Gi
+      storageClass: storage
+      accessModes: [ ReadWriteOnce ]
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: '8'
+
+sealedSecrets:
+  postgres-role-postgresUsername:
+    postgres-password:
+  object-store-creds:
+    AWS_ACCESS_KEY_ID:
+    AWS_SECRET_ACCESS_KEY:

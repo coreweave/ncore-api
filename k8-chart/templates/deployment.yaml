@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ncore-api.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ncore-api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ncore-api.selectorLabels" . | nindent 8 }}
+        app: ncore-api
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: ipxe-templates
+          configMap:
+            name: {{ .Release.Name }}-ipxe-templates
+      initContainers:
+        {{- range .Values.databases }}
+        - name: {{.}}-db-init-migration
+          image: {{ $.Values.image.repository }}:migration-{{ $.Values.image.tag }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          env:
+            - name: PGHOST
+              value: {{ $.Release.Name }}-postgresql
+            - name: PGUSER
+              value: {{ $.Values.postgresql.postgresqlUsername }}
+            - name: PGDATABASE
+              value: {{.}}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-role-{{ kebabcase $.Values.postgresql.postgresqlUsername }}
+                  key: postgres-password
+        {{- end }}
+      containers:
+        - name: ncore-api
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          args:
+            - --http=0.0.0.0:{{ .Values.service.targetPort }}
+            - --ipxe.template={{ .Values.ipxe.templateFilePath }}/{{ .Values.ipxe.defaultTemplate }}
+            - --s3.host={{ .Values.s3.host }}
+          volumeMounts:
+            - name: ipxe-templates
+              mountPath: {{ .Values.ipxe.templateFilePath }}
+              readOnly: true
+          env:
+            {{- range .Values.databases }}
+            - name: {{upper .}}_PGHOST
+              value: {{ $.Release.Name }}-postgresql
+            - name: {{upper .}}_PGUSER
+              value: {{ $.Values.postgresql.postgresqlUsername }}
+            - name: {{upper .}}_PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-role-{{ kebabcase $.Values.postgresql.postgresqlUsername }}
+                  key: postgres-password
+            - name: {{upper .}}_PGDATABASE
+              value: {{.}}
+            - name: {{upper .}}_PGPORT
+              value: {{ default "5432" $.Values.postgresql.pgport | quote }}
+            {{- end }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-creds
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: object-store-creds
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS-REGION
+              value: "default"
