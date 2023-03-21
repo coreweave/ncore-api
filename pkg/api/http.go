@@ -180,9 +180,6 @@ func (s *HTTPServer) handleIpxeImages(w http.ResponseWriter, r *http.Request) {
 		if err := dec.Decode(&ic); err != nil {
 			errors = append(errors, fmt.Sprintf(`cannot json decode IpxeDbConfig request: %v`, err))
 		} else {
-      if ic.ImageDir == "" {
-        errors = append(errors, "ImageDir is missing.")
-      }
       if ic.ImageName == "" {
         errors = append(errors, "ImageName is missing.")
       }
@@ -290,7 +287,6 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *http.Request) {
 	image := r.URL.Path[len("/api/v2/ipxe/s3/"):]
 	bucket := ""
-  imageDir := ""
 	lifetimeSecs := int64(900)
 	if image == "" || strings.ContainsRune(image, '/') {
 		http.NotFound(w, r)
@@ -300,15 +296,13 @@ func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *h
 	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
 	log.Printf("Request RequestURI: %s", r.RequestURI)
 
-	imageUrlHttps, imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.ipxe.GetIpxeImagePresignedUrls(bucket, imageDir, image, lifetimeSecs)
+	imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.ipxe.GetIpxeImagePresignedUrls(bucket, image, lifetimeSecs)
 	switch {
 	case err == context.Canceled, err == context.DeadlineExceeded:
 		return
 	case err != nil:
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		log.Println(err)
-	case imageUrlHttps == "":
-		http.Error(w, "imageUrlHttps not found", http.StatusNotFound)
   case imageInitrdUrlHttps == "":
 		http.Error(w, "imageInitrdUrlHttps not found", http.StatusNotFound)
   case imageKernelUrlHttps == "":
@@ -317,8 +311,6 @@ func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *h
 		http.Error(w, "imageRootFsUrlHttps not found", http.StatusNotFound)
 	default:
 		w.Header().Set("Content-Type", "application/text")
-		w.Write([]byte("imageUrlHttps: " + imageUrlHttps))
-		w.Write([]byte("\n"))
 		w.Write([]byte("imageInitrdUrlHttps: " + imageInitrdUrlHttps))
 		w.Write([]byte("\n"))
 		w.Write([]byte("imageKernelUrlHttps: " + imageKernelUrlHttps))

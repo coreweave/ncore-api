@@ -9,13 +9,10 @@ import (
 )
 
 type IpxeConfig struct {
-  ImageDir      string
 	ImageName     string
 	ImageBucket   string
 	ImageTag      string
 	ImageType     string
-	ImageUrlHttp  string
-	ImageUrlHttps string
   ImageInitrdUrlHttp  string
 	ImageInitrdUrlHttps string
   ImageKernelUrlHttp  string
@@ -26,7 +23,6 @@ type IpxeConfig struct {
 }
 
 type IpxeDbConfig struct {
-  ImageDir    string
 	ImageName   string
 	ImageBucket string
 	ImageTag    string
@@ -36,13 +32,10 @@ type IpxeDbConfig struct {
 
 func (ic *IpxeConfig) dto() *IpxeConfig {
 	return &IpxeConfig{
-    ImageDir:      ic.ImageDir,
 		ImageName:     ic.ImageName,
 		ImageBucket:   ic.ImageBucket,
 		ImageTag:      ic.ImageTag,
 		ImageType:     ic.ImageType,
-		ImageUrlHttp:  strings.Replace(ic.ImageUrlHttps, "https", "http", 1),
-		ImageUrlHttps: ic.ImageUrlHttps,
     ImageInitrdUrlHttp:  strings.Replace(ic.ImageInitrdUrlHttps, "https", "http", 1),
     ImageInitrdUrlHttps: ic.ImageInitrdUrlHttps,
     ImageKernelUrlHttp:  strings.Replace(ic.ImageKernelUrlHttps, "https", "http", 1),
@@ -55,7 +48,6 @@ func (ic *IpxeConfig) dto() *IpxeConfig {
 
 func (idc *IpxeDbConfig) dto() *IpxeDbConfig {
 	return &IpxeDbConfig{
-    ImageDir:      idc.ImageDir,
 		ImageName:     idc.ImageName,
 		ImageBucket:   idc.ImageBucket,
 		ImageTag:      idc.ImageTag,
@@ -81,9 +73,8 @@ func (s *Service) GetIpxeConfig(ctx context.Context, macAddress string) (*IpxeCo
 		log.Printf("GetIpxeConfig: failed to get IpxeConfig from database. %v", err)
 		return nil, err
 	}
-  imageUrlHttps, imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.GetIpxeImagePresignedUrls(
+  imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.GetIpxeImagePresignedUrls(
     idc.ImageBucket,
-    idc.ImageDir,
     idc.ImageName,
     900,
   )
@@ -92,12 +83,10 @@ func (s *Service) GetIpxeConfig(ctx context.Context, macAddress string) (*IpxeCo
 		return nil, err
 	}
 	ic = &IpxeConfig{
-    ImageDir:      idc.ImageDir,
 		ImageName:     idc.ImageName,
 		ImageBucket:   idc.ImageBucket,
 		ImageTag:      idc.ImageTag,
 		ImageType:     idc.ImageType,
-		ImageUrlHttps: imageUrlHttps,
     ImageInitrdUrlHttps: imageInitrdUrlHttps,
     ImageKernelUrlHttps: imageKernelUrlHttps,
     ImageRootFsUrlHttps: imageRootFsUrlHttps,
@@ -122,13 +111,11 @@ func (s *Service) CreateIpxeImage(ctx context.Context, config *IpxeDbConfig) (*I
 		log.Printf("CreateIpxeImage: failed to insert IpxeDbConfig: %v", err)
 		return nil, err
 	}
-	imageUrlHttps, imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.GetIpxeImagePresignedUrls(
+	imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.GetIpxeImagePresignedUrls(
       ic.ImageBucket,
-      ic.ImageDir,
       ic.ImageName,
       900,
   )
-	ic.ImageUrlHttps = imageUrlHttps
 	ic.ImageInitrdUrlHttps = imageInitrdUrlHttps
 	ic.ImageKernelUrlHttps = imageKernelUrlHttps
 	ic.ImageRootFsUrlHttps = imageRootFsUrlHttps
@@ -148,11 +135,9 @@ func (s *Service) DeleteIpxeImage(ctx context.Context, config *IpxeDbDeleteConfi
 // GetIpxePresignedUrl returns a url string for the given bucket.
 func (s *Service) GetIpxeImagePresignedUrls(
 	bucket string,
-  imageDir string,
 	imageName string,
 	lifetimeSecs int64,
 ) (
-    string,
     string,
     string,
     string,
@@ -161,65 +146,55 @@ func (s *Service) GetIpxeImagePresignedUrls(
 	if bucket == "" {
 		bucket = s.ipxeDefaultBucket
 	}
-  if imageDir == "" {
-		imageDir = s.ipxeDefaultImageDir
+  if imageName == "" {
+		imageName = s.ipxeDefaultImage
 	}
-  image := fmt.Sprintf(`%s/%s`, imageDir, imageName)
-  imageInitrd := fmt.Sprintf(`%s/initrd.img`, imageDir)
-  imageKernel := fmt.Sprintf(`%s/vmlinuz`, imageDir)
-  imageRootFs := fmt.Sprintf(`%s/rootfs.cpio.gz`, imageDir)
-	imageReq, err := s.s3Presigner.GetObject(bucket, image, lifetimeSecs)
+  imageInitrd := fmt.Sprintf(`%s/initrd.img`, imageName)
+  imageKernel := fmt.Sprintf(`%s/vmlinuz`, imageName)
+  imageRootFs := fmt.Sprintf(`%s/rootfs.cpio.gz`, imageName)
+
+  imageInitrdReq, err := s.s3Presigner.GetObject(bucket, imageInitrd, lifetimeSecs)
   if err != nil {
 		log.Printf("GetIpxePresignedUrls error: %v", err)
-		return "", "", "", "", err
-	}
-	imageInitrdReq, err := s.s3Presigner.GetObject(bucket, imageInitrd, lifetimeSecs)
-  if err != nil {
-		log.Printf("GetIpxePresignedUrls error: %v", err)
-		return "", "", "", "", err
+		return "", "", "", err
 	}
   imageKernelReq, err := s.s3Presigner.GetObject(bucket, imageKernel, lifetimeSecs)
   if err != nil {
 		log.Printf("GetIpxePresignedUrls error: %v", err)
-		return "", "", "", "", err
+		return "", "", "", err
 	}
 	imageRootFsReq, err := s.s3Presigner.GetObject(bucket, imageRootFs, lifetimeSecs)
 	if err != nil {
 		log.Printf("GetIpxePresignedUrls error: %v", err)
-		return "", "", "", "", err
+		return "", "", "", err
 	}
-	imageUrl := imageReq.URL
 	imageInitrdUrl := imageInitrdReq.URL
 	imageKernelUrl := imageKernelReq.URL
 	imageRootFsUrl := imageRootFsReq.URL
-	return imageUrl, imageInitrdUrl, imageKernelUrl, imageRootFsUrl, err
+	return imageInitrdUrl, imageKernelUrl, imageRootFsUrl, err
 }
 
 func (s *Service) GetIpxeApiDefault() *IpxeConfig {
 	var ic IpxeConfig
-	imageUrlHttps, imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.GetIpxeImagePresignedUrls(
+	imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.GetIpxeImagePresignedUrls(
       s.ipxeDefaultBucket,
-      s.ipxeDefaultImageDir,
       s.ipxeDefaultImage,
       900,
   )
 	if err != nil {
 		log.Printf("GetIpxeApiDefault error: %v", err)
-		imageUrlHttps = err.Error()
     imageInitrdUrlHttps = err.Error()
     imageKernelUrlHttps = err.Error()
     imageRootFsUrlHttps = err.Error()
 	}
-  defaultCmdline := fmt.Sprintf(`%s/cmdline`, s.ipxeDefaultImageDir)
+  defaultCmdline := fmt.Sprintf(`%s/cmdline`, s.ipxeDefaultImage)
   bytes, err := s.s3Svc.GetObject( s.ipxeDefaultBucket, defaultCmdline)
   if err != nil {
     log.Printf("GetIpxeApiDefault: failed to GetObject for defaultCmdline")
   }
   ic.ImageCmdline = string(bytes)
-  ic.ImageDir = s.ipxeDefaultImageDir
 	ic.ImageTag = "default"
 	ic.ImageType = "default"
-	ic.ImageUrlHttps = imageUrlHttps
 	ic.ImageName = s.ipxeDefaultImage
 	ic.ImageBucket = s.ipxeDefaultBucket
   ic.ImageInitrdUrlHttps = imageInitrdUrlHttps

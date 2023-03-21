@@ -58,7 +58,6 @@ func main() {
 		httpAddr,
 		s3Host,
 		ipxeTemplateFile,
-		ipxeDefaultImageDir,
 		ipxeDefaultImage,
 		ipxeDefaultBucket string
 	)
@@ -66,8 +65,7 @@ func main() {
 	flag.StringVar(&httpAddr, "http", "localhost:8080", "HTTP service address to listen for incoming requests on")
 	flag.StringVar(&s3Host, "s3.host", "https://accel-object.ord1.coreweave.com", "S3 Storage endpoint")
 	flag.StringVar(&ipxeTemplateFile, "ipxe.template", "pkg/ipxe/templates/template_https.ipxe", "Relative path to ipxe template file")
-	flag.StringVar(&ipxeDefaultImageDir, "ipxe.default.imageDir", "ncore-1.24.0-nodisplay", "Default imageDir where image components can be found. Used when database is unavailable or no entry found for macAddress")
-	flag.StringVar(&ipxeDefaultImage, "ipxe.default.image", "ncore-nodisplay-1.24.0.img", "Default image used when database is unavailable or no entry found for macAddress")
+	flag.StringVar(&ipxeDefaultImage, "ipxe.default.image", "ncore-1.24.0-nodisplay", "Default image used when database is unavailable or no entry found for macAddress")
 	flag.StringVar(&ipxeDefaultBucket, "ipxe.default.bucket", "coreweave-ncore-images", "Default image used when database is unavailable or no entry found for macAddress")
 
 	flag.Parse()
@@ -106,7 +104,6 @@ func main() {
       *s3Svc,
 			presignClient,
 			ipxeTemplateFile,
-			ipxeDefaultImageDir,
 			ipxeDefaultImage,
 			ipxeDefaultBucket,
 		),

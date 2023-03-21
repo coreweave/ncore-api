@@ -13,7 +13,6 @@ func NewService(
     s3Svc s3.S3Svc,
     s3Presigner s3.HttpPresigner,
     ipxeTemplateFile string,
-    ipxeDefaultImageDir string,
     ipxeDefaultImage string,
     ipxeDefaultBucket string,
 ) *Service {
@@ -23,7 +22,6 @@ func NewService(
     s3Svc:             s3Svc,
 		s3Presigner:       s3Presigner,
 		ipxeTemplateFile:  ipxeTemplateFile,
-		ipxeDefaultImageDir:  ipxeDefaultImageDir,
 		ipxeDefaultImage:  ipxeDefaultImage,
 		ipxeDefaultBucket: ipxeDefaultBucket,
 	}
@@ -35,7 +33,6 @@ type Service struct {
   s3Svc             s3.S3Svc
 	s3Presigner       s3.HttpPresigner
 	ipxeTemplateFile  string
-	ipxeDefaultImageDir  string
 	ipxeDefaultImage  string
 	ipxeDefaultBucket string
 }

@@ -57,7 +57,6 @@ func (np *nodePayload) dto() *payloads.NodePayload {
 }
 
 type ipxeDbConfig struct {
-  ImageDir    string
 	ImageName   string
 	ImageBucket string
 	ImageTag    string
@@ -67,7 +66,6 @@ type ipxeDbConfig struct {
 
 func (ic *ipxeDbConfig) dto() *ipxe.IpxeDbConfig {
 	return &ipxe.IpxeDbConfig{
-		ImageDir:    ic.ImageDir,
 		ImageName:   ic.ImageName,
 		ImageBucket: ic.ImageBucket,
 		ImageTag:    ic.ImageTag,
@@ -161,7 +159,6 @@ func (db *DB) GetIpxeDbConfig(ctx context.Context, macAddress string) (*ipxe.Ipx
 	var ic []ipxeDbConfig
 	sql := fmt.Sprintf(`
     SELECT
-        images.image_dir,
         images.image_name,
         images.image_bucket,
         images.image_tag,
@@ -200,7 +197,6 @@ func (db *DB) CreateIpxeImage(ctx context.Context, config *ipxe.IpxeDbConfig) (*
 	var ic *ipxe.IpxeConfig
 	const sql = `
     INSERT INTO images (
-        image_dir,
         image_name,
         image_bucket,
         image_tag,
@@ -212,12 +208,10 @@ func (db *DB) CreateIpxeImage(ctx context.Context, config *ipxe.IpxeDbConfig) (*
         $2,
         $3,
         $4,
-        $5,
-        $6
+        $5
     );
 	`
 	switch _, err := db.conn(ctx).Exec(ctx, sql,
-    config.ImageDir,
 		config.ImageName,
 		config.ImageBucket,
 		config.ImageTag,
@@ -234,7 +228,6 @@ func (db *DB) CreateIpxeImage(ctx context.Context, config *ipxe.IpxeDbConfig) (*
 		return nil, errors.New("cannot create image")
 	}
 	ic = &ipxe.IpxeConfig{
-		ImageDir:   config.ImageDir,
 		ImageName:   config.ImageName,
 		ImageBucket: config.ImageBucket,
 		ImageTag:    config.ImageTag,
