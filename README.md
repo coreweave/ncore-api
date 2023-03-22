@@ -61,7 +61,6 @@ go run .
 ```bash
 2023-03-20 19:29           76  s3://coreweave-ncore-images/ncore-develop-ci-test/cmdline
 2023-03-20 19:29    149244106  s3://coreweave-ncore-images/ncore-develop-ci-test/initrd.img
-2023-03-20 19:32  11010048000  s3://coreweave-ncore-images/ncore-develop-ci-test/ncore-develop-ci-test.20230320-1916.img
 2023-03-20 19:32   1172793855  s3://coreweave-ncore-images/ncore-develop-ci-test/rootfs.cpio.gz
 2023-03-20 19:32     11458952  s3://coreweave-ncore-images/ncore-develop-ci-test/vmlinuz
 ```
@@ -99,13 +98,10 @@ go run .
 
       ```json
       {
-        "ImageDir": "ncore-develop-ci-test",
-        "ImageName": "ncore-develop-ci-test.20230320-1916.img",
+        "ImageName": "ncore-develop-ci-test.20230320-1916",
         "ImageBucket": "coreweave-ncore-images",
         "ImageTag": "default",
         "ImageType": "default",
-        "ImageUrlHttp": "http://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/ncore-develop-ci-test.20230320-1916.img?X-Amz-Algorithm=AWS4-HMAC-SHA256\u0026X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request\u0026X-Amz-Date=20230320T220941Z\u0026X-Amz-Expires=900\u0026X-Amz-SignedHeaders=host\u0026x-id=GetObject\u0026X-Amz-Signature=9178ab4759377e117d4e6b4407004b135e25d08d5dc9bcbdde074b6655a639e3",
-        "ImageUrlHttps": "https://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/ncore-develop-ci-test.20230320-1916.img?X-Amz-Algorithm=AWS4-HMAC-SHA256\u0026X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request\u0026X-Amz-Date=20230320T220941Z\u0026X-Amz-Expires=900\u0026X-Amz-SignedHeaders=host\u0026x-id=GetObject\u0026X-Amz-Signature=9178ab4759377e117d4e6b4407004b135e25d08d5dc9bcbdde074b6655a639e3",
         "ImageInitrdUrlHttp": "http://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/initrd.img?X-Amz-Algorithm=AWS4-HMAC-SHA256\u0026X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request\u0026X-Amz-Date=20230320T220941Z\u0026X-Amz-Expires=900\u0026X-Amz-SignedHeaders=host\u0026x-id=GetObject\u0026X-Amz-Signature=7e44ae67aed3bfe4f8c30125233a79d5e06aa596c65e201a19e9e03cdeac4fb7",
         "ImageInitrdUrlHttps": "https://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/initrd.img?X-Amz-Algorithm=AWS4-HMAC-SHA256\u0026X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request\u0026X-Amz-Date=20230320T220941Z\u0026X-Amz-Expires=900\u0026X-Amz-SignedHeaders=host\u0026x-id=GetObject\u0026X-Amz-Signature=7e44ae67aed3bfe4f8c30125233a79d5e06aa596c65e201a19e9e03cdeac4fb7",
         "ImageKernelUrlHttp": "http://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/vmlinuz?X-Amz-Algorithm=AWS4-HMAC-SHA256\u0026X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request\u0026X-Amz-Date=20230320T220941Z\u0026X-Amz-Expires=900\u0026X-Amz-SignedHeaders=host\u0026x-id=GetObject\u0026X-Amz-Signature=147e2f85f73ae2df53dd7d50de311abca6ced173cd19f53a75b6f819d4ee8cc4",
@@ -122,8 +118,7 @@ go run .
 
       ```bash
       curl -s -XPUT "localhost:8080/api/v2/ipxe/images/" -H 'Content-Type: application/json' -d '{
-        "ImageDir": "ncore-develop-ci-test",
-        "ImageName": "ncore-develop-ci-test.20230320-1811.img",
+        "ImageName": "ncore-develop-ci-test.20230320-1811",
         "ImageCmdline": "root=UUID=cb2e0849-89f9-4590-a9b1-61e8b92fc308 ro console=tty1 console=ttyS0",
         "ImageBucket": "coreweave-ncore-images",
         "ImageTag": "develop",
@@ -142,11 +137,11 @@ go run .
       :start
       menu Boot Options for ${mac}
       item --gap -------------------- Images --------------------
-      item ncore-develop-ci-test.20230320-1916.img ncore-develop-ci-test.20230320-1916.img
+      item ncore-develop-ci-test.20230320-1916 ncore-develop-ci-test.20230320-1916
       ...
       # image boot
-      :ncore-develop-ci-test.20230320-1916.img
-      echo Booting ncore-develop-ci-test.20230320-1916.img from https
+      :ncore-develop-ci-test.20230320-1916
+      echo Booting ncore-develop-ci-test.20230320-1916 from https
       set conn_type http
       kernel http://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/vmlinuz?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request&X-Amz-Date=20230320T221400Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&x-id=GetObject&X-Amz-Signature=d1d4cbf4334f1be678064aebca4fd89899be239e6e0e4b6d7e3cf1725fb5d713 root=UUID=cb2e0849-89f9-4590-a9b1-61e8b92fc308 ro console=tty1 console=ttyS0 initrd=initrd.magic root=http://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/rootfs.cpio.gz?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request&X-Amz-Date=20230320T221400Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&x-id=GetObject&X-Amz-Signature=11c671c7d74aefa272f59859f32149bb34658a00eb8403dd09c09c210f74b967
       initrd http://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/initrd.img?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request&X-Amz-Date=20230320T221400Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&x-id=GetObject&X-Amz-Signature=130442c2337a7451bd52f40b9af117e40a0d74895ba437935e7d6c25ded47a9b
@@ -155,10 +150,9 @@ go run .
 
 - `/api/v2/ipxe/s3/<imageName>`
   - returns a presigned urls to download the image as text
-  - ex. `curl localhost:8080/api/v2/ipxe/s3/ncore-develop-ci-test.20230320-1916.img`
+  - ex. `curl localhost:8080/api/v2/ipxe/s3/ncore-develop-ci-test.20230320-1916`
 
       ```text
-      imageUrlHttps: https://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/ncore-develop-ci-test.20230320-1916.img?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request&X-Amz-Date=20230320T221517Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&x-id=GetObject&X-Amz-Signature=8b3d254d98acf0678053f28f302fc3ebdfc031e6c5d8a17fce0ce94aa2e1e158
       imageInitrdUrlHttps: https://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/initrd.img?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request&X-Amz-Date=20230320T221517Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&x-id=GetObject&X-Amz-Signature=4bca2b8dcd21e36637d9db1158d98fc39f4234a0c71e8ba270d271b6f71b0c8e
       imageKernelUrlHttps: https://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/vmlinuz?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request&X-Amz-Date=20230320T221517Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&x-id=GetObject&X-Amz-Signature=7104ca7504264bf05681565d4f0b368344ebb08f6b00a8ff863133f279480b22
       imageRootFsUrlHttps: <https://coreweave-ncore-images.object.ord1.coreweave.com/ncore-develop-ci-test/rootfs.cpio.gz?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1J2P027HRLMXTOGSBNIO%2F20230320%2F%2Fs3%2Faws4_request&X-Amz-Date=20230320T221517Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&x-id=GetObject&X-Amz-Signature=b4e249ebfa0957693cf51630f90ee1576fc729833986e2615ef6ffea44e3a5f2>

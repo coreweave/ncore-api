@@ -10,7 +10,6 @@ CREATE TABLE node_images (
 
 
 CREATE TABLE images (
-    image_dir text NOT NULL CHECK (image_dir != '') NOT NULL,
     image_bucket text NOT NULL CHECK (image_bucket != ''),
     image_name text NOT NULL CHECK (image_name != ''),
     image_cmdline text NOT NULL CHECK (image_cmdline != ''),
