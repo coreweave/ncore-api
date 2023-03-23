@@ -61,6 +61,8 @@ func (s *HTTPServer) handleGetNodePayload(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+  macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
+
   // if query includes a hostname instead of full macAddress
   if len(macAddress) == 7 {
     macAddress = "%" + macAddress[1:]
@@ -123,6 +125,9 @@ func (s *HTTPServer) handleGetNodeIpxe(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+
+  macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
+
 	log.Printf("Request Host: %s", r.Host)
 	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
 	log.Printf("Request RequestURI: %s", r.RequestURI)
@@ -266,6 +271,9 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 		http.NotFound(w, r)
 		return
 	}
+
+  macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
+
 	log.Printf("Request Host: %s", r.Host)
 	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
 	log.Printf("Request RequestURI: %s", r.RequestURI)
