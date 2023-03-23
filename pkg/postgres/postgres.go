@@ -86,7 +86,7 @@ func (db *DB) GetNodePayload(ctx context.Context, macAddress string) (*payloads.
 				node_payloads.mac_address
 			FROM "node_payloads"
 			JOIN payloads on (node_payloads.payload_id = payloads.payload_id)
-			WHERE mac_address = '%s' LIMIT 1
+			WHERE mac_address like '%s' LIMIT 1
 	`, macAddress) // #nosec G201
 	np_rows, err := db.conn(ctx).Query(ctx, np_sql)
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
