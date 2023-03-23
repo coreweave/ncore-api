@@ -109,6 +109,65 @@ func (db *DB) GetNodePayload(ctx context.Context, macAddress string) (*payloads.
 	return np[0].dto(), nil
 }
 
+func (db *DB) AddDefaultNodePayload(ctx context.Context, config *payloads.NodePayloadDb) (*payloads.NodePayloadDb, error) {
+	var npd *payloads.NodePayloadDb
+	const npd_sql = `
+    INSERT INTO node_payloads (
+      payload_id,
+      mac_address
+    )
+    VALUES (
+        $1,
+        $2
+    );
+	`
+	switch _, err := db.conn(ctx).Exec(ctx, npd_sql,
+    config.PayloadId,
+    config.MacAddress,
+  ); {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return nil, err
+	case err != nil:
+		log.Printf("Error - AddDefaultNodePayload: %v - %v\n", err, config)
+		return nil, fmt.Errorf(`cannot create payload for config: %v`, config)
+	}
+
+	npd = &payloads.NodePayloadDb{
+		PayloadId:   config.PayloadId,
+		MacAddress:   config.MacAddress,
+	}
+	return npd, nil
+}
+
+// UpdateNodePayload updates the PayloadId for mac_address.
+func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloadDb) (*payloads.NodePayloadDb, error) {
+	var npd *payloads.NodePayloadDb
+  log.Printf("UpdateNodePayload: %v\n", *config)
+	const npd_sql = `
+    UPDATE node_payloads
+    SET
+        payload_id=$1
+    WHERE
+        mac_address like $2
+  `
+	switch _, err := db.conn(ctx).Exec(ctx, npd_sql,
+    config.PayloadId,
+    config.MacAddress,
+  ); {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return nil, err
+	case err != nil:
+		log.Printf("Error - UpdateNodePayload: %v - %v\n", err, config)
+		return nil, fmt.Errorf(`cannot update payload for config: %v`, *config)
+	}
+
+	npd = &payloads.NodePayloadDb{
+		PayloadId:   config.PayloadId,
+		MacAddress:   config.MacAddress,
+	}
+	return npd, nil
+}
+
 // GetPayloadParameters returns an interface{} for a payloadId.
 func (db *DB) GetPayloadParameters(ctx context.Context, payloadId string) (interface{}, error) {
 	// https://faraday.ai/blog/how-to-aggregate-jsonb-in-postgres/

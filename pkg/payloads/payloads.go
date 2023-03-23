@@ -5,10 +5,16 @@ import (
 	"time"
 )
 
-// NodePayload for mac_address.
+// NodePayload with directory for mac_address.
 type NodePayload struct {
 	PayloadId        string
 	PayloadDirectory string
+	MacAddress       string
+}
+
+// NodePayload payloads.node_payloads entry for mac_address.
+type NodePayloadDb struct {
+	PayloadId        string
 	MacAddress       string
 }
 
@@ -48,6 +54,23 @@ func (s *Service) GetNodePayload(ctx context.Context, macAddress string) (*NodeP
 		return nil, ValidationError{"missing payload macAddress"}
 	}
 	return s.db.GetNodePayload(ctx, macAddress)
+}
+
+// AddDefaultNodePayload adds a db entry with defaults for mac_address.
+func (s *Service) AddDefaultNodePayload(ctx context.Context, macAddress string) (*NodePayloadDb, error) {
+	if macAddress == "" {
+		return nil, ValidationError{"missing payload macAddress"}
+	}
+	var npd = &NodePayloadDb{
+		PayloadId: s.payloadsDefaultPayloadId,
+		MacAddress: macAddress,
+	}
+	return s.db.AddDefaultNodePayload(ctx, npd)
+}
+
+// UpdateNodePayload updates the PayloadId for mac_address.
+func (s *Service) UpdateNodePayload(ctx context.Context, config *NodePayloadDb) (*NodePayloadDb, error) {
+	return s.db.UpdateNodePayload(ctx, config)
 }
 
 // GetPayloadParameters returns a PayloadSchema for PayloadId.
