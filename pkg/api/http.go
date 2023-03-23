@@ -61,6 +61,11 @@ func (s *HTTPServer) handleGetNodePayload(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+  // if query includes a hostname instead of full macAddress
+  if len(macAddress) == 7 {
+    macAddress = "%" + macAddress[1:]
+  }
+
 	payload, err := s.payloads.GetNodePayload(r.Context(), macAddress)
 	switch {
 	case err == context.Canceled, err == context.DeadlineExceeded:
