@@ -59,7 +59,9 @@ func main() {
 		s3Host,
 		ipxeTemplateFile,
 		ipxeDefaultImage,
-		ipxeDefaultBucket string
+		ipxeDefaultBucket,
+    payloadsDefaultPayloadId,
+    payloadsDefaultPayloadDirectory string
 	)
 
 	flag.StringVar(&httpAddr, "http", "localhost:8080", "HTTP service address to listen for incoming requests on")
@@ -67,6 +69,8 @@ func main() {
 	flag.StringVar(&ipxeTemplateFile, "ipxe.template", "pkg/ipxe/templates/template_https.ipxe", "Relative path to ipxe template file")
 	flag.StringVar(&ipxeDefaultImage, "ipxe.default.image", "ncore-1.24.0-nodisplay", "Default image used when database is unavailable or no entry found for macAddress")
 	flag.StringVar(&ipxeDefaultBucket, "ipxe.default.bucket", "coreweave-ncore-images", "Default image used when database is unavailable or no entry found for macAddress")
+	flag.StringVar(&payloadsDefaultPayloadId, "payloads.default.payloadId", "default", "Default PayloadId assigned when no entry found for macAddress")
+	flag.StringVar(&payloadsDefaultPayloadDirectory, "payloads.default.payloadDirectory", "kube-worker", "Default PayloadDirectory assigned when no entry found for macAddress")
 
 	flag.Parse()
 	pgxLogLevel, err := database.LogLevelFromEnv()
@@ -96,7 +100,10 @@ func main() {
 		Payloads: payloads.NewService(
 			&postgres.DB{
 				Postgres: pgPoolPayloads,
-			}),
+			},
+      payloadsDefaultPayloadId,
+      payloadsDefaultPayloadDirectory,
+    ),
 		Ipxe: ipxe.NewService(
 			&postgres.DB{
 				Postgres: pgPoolIpxe,
