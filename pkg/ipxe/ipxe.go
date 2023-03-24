@@ -22,6 +22,12 @@ type IpxeConfig struct {
   ImageCmdline string
 }
 
+type IpxeNodeDbConfig struct {
+  ImageTag string
+  ImageType string
+  MacAddress string
+}
+
 type IpxeDbConfig struct {
 	ImageName   string
 	ImageBucket string
@@ -71,7 +77,7 @@ func (s *Service) GetIpxeConfig(ctx context.Context, macAddress string) (*IpxeCo
 	idc, err := s.db.GetIpxeDbConfig(ctx, macAddress)
 	if err != nil {
 		log.Printf("GetIpxeConfig: failed to get IpxeConfig from database. %v", err)
-		return nil, err
+		return nil, nil
 	}
   imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.GetIpxeImagePresignedUrls(
     idc.ImageBucket,
@@ -101,6 +107,12 @@ func (s *Service) GetIpxeConfigTemplate(ctx context.Context) (template.Template,
 	ipxeTemplate := GetIpxeConfigTemplate(s.ipxeTemplateFile)
 
 	return ipxeTemplate, nil
+}
+
+// CreateNodeIpxeConfig inserts an IpxeNodeDbConfig into ipxe.node_images.
+func (s *Service) CreateNodeIpxeConfig(ctx context.Context, config *IpxeNodeDbConfig) (*IpxeNodeDbConfig, error) {
+  indc, err := s.db.CreateNodeIpxeConfig(ctx, config)
+  return indc, err
 }
 
 // GetIpxe returns an IpxeConfig for macAddress.
@@ -193,8 +205,8 @@ func (s *Service) GetIpxeApiDefault() *IpxeConfig {
     log.Printf("GetIpxeApiDefault: failed to GetObject for defaultCmdline")
   }
   ic.ImageCmdline = string(bytes)
-	ic.ImageTag = "default"
-	ic.ImageType = "default"
+	ic.ImageTag = s.ipxeDefaultImageTag
+	ic.ImageType = s.ipxeDefaultImageType
 	ic.ImageName = s.ipxeDefaultImage
 	ic.ImageBucket = s.ipxeDefaultBucket
   ic.ImageInitrdUrlHttps = imageInitrdUrlHttps
