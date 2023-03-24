@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/coreweave/ncore-api/pkg/database"
 	"github.com/coreweave/ncore-api/pkg/ipxe"
@@ -139,6 +140,35 @@ func (db *DB) AddDefaultNodePayload(ctx context.Context, config *payloads.NodePa
 	return npd, nil
 }
 
+// GetAvailablePayloads returns a list of available payloads
+func (db *DB) GetAvailablePayloads(ctx context.Context) ([]string) {
+  const p_sql = `
+    SELECT ARRAY(
+      SELECT
+          payload_id
+      FROM
+          payloads
+    )
+  `
+  p_rows, err := db.conn(ctx).Query(ctx, p_sql)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return nil
+	}
+  var availablePayloads []string
+	if err == nil {
+    defer p_rows.Close()
+    for p_rows.Next() {
+      err = p_rows.Scan(&availablePayloads)
+      if err != nil {
+        log.Printf("Error - GetAvailablePayloads - %v", err)
+      }
+      log.Printf("AvailablePayloads - %v", availablePayloads)
+    }
+    return availablePayloads
+  }
+  return []string{}
+}
+
 // UpdateNodePayload updates the PayloadId for mac_address.
 func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloadDb) (*payloads.NodePayloadDb, error) {
 	var npd *payloads.NodePayloadDb
@@ -150,7 +180,7 @@ func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloa
     WHERE
         mac_address like $2
   `
-	switch _, err := db.conn(ctx).Exec(ctx, npd_sql,
+	switch commandTag, err := db.conn(ctx).Exec(ctx, npd_sql,
     config.PayloadId,
     config.MacAddress,
   ); {
@@ -159,12 +189,15 @@ func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloa
 	case err != nil:
 		log.Printf("Error - UpdateNodePayload: %v - %v\n", err, config)
 		return nil, fmt.Errorf(`cannot update payload for config: %v`, *config)
-	}
-
-	npd = &payloads.NodePayloadDb{
-		PayloadId:   config.PayloadId,
-		MacAddress:   config.MacAddress,
-	}
+  case strings.HasPrefix(commandTag.String(), "UPDATE 0"):
+    log.Printf("UpdateNodePayload: mac_address doesn't exist: %v\n", config)
+		return nil, fmt.Errorf(`mac_address not in database: %v`, *config)
+  default:
+    npd = &payloads.NodePayloadDb{
+      PayloadId:   config.PayloadId,
+      MacAddress:   config.MacAddress,
+    }
+  }
 	return npd, nil
 }
 

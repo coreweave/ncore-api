@@ -25,6 +25,16 @@ func (e *jsonErrors) writeErrors(w http.ResponseWriter) {
   }
 }
 
+func contains(s []string, str string) bool {
+  for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
+}
+
 // NewHTTPServer creates an HTTPServer for the API.
 func NewHTTPServer(i *ipxe.Service, p *payloads.Service) http.Handler {
 	s := &HTTPServer{
@@ -147,7 +157,19 @@ func (s *HTTPServer) handleNodePayload(w http.ResponseWriter, r *http.Request) {
     if len(npd.MacAddress) == 7 {
       npd.MacAddress = "%" + npd.MacAddress[1:]
     }
+    payloads := s.payloads.GetAvailablePayloads(r.Context())
 
+    if ! contains(payloads, npd.PayloadId) {
+      errors = append(errors, "PayloadId doesn't exist")
+      errors = append(errors, fmt.Sprintf(`Available Payloads: %v`, payloads))
+      errorsJson := &jsonErrors{
+        Errors: errors,
+      }
+      errorsJson.writeErrors(w)
+			return
+    }
+
+    log.Printf("payloads - %v", payloads)
     config, err := s.payloads.UpdateNodePayload(r.Context(), npd)
 		if err != nil {
       errors = append(errors, err.Error())
