@@ -91,6 +91,16 @@ func (s *HTTPServer) handleNodePayload(w http.ResponseWriter, r *http.Request) {
       macAddress = "%" + macAddress[1:]
     }
 
+    if len(macAddress) != 12 && len(macAddress) != 7 {
+      var errors []string
+      errors = append(errors, "Invalid mac_address")
+      errorsJson := &jsonErrors{
+        Errors: errors,
+      }
+      errorsJson.writeErrors(w)
+			return
+    }
+
     payload, err := s.payloads.GetNodePayload(r.Context(), macAddress)
     switch {
     case err == context.Canceled, err == context.DeadlineExceeded:
@@ -157,6 +167,17 @@ func (s *HTTPServer) handleNodePayload(w http.ResponseWriter, r *http.Request) {
     if len(npd.MacAddress) == 7 {
       npd.MacAddress = "%" + npd.MacAddress[1:]
     }
+
+    if len(npd.MacAddress) != 12 && len(npd.MacAddress) != 7 {
+      var errors []string
+      errors = append(errors, "Invalid mac_address")
+      errorsJson := &jsonErrors{
+        Errors: errors,
+      }
+      errorsJson.writeErrors(w)
+			return
+    }
+
     payloads := s.payloads.GetAvailablePayloads(r.Context())
 
     if ! contains(payloads, npd.PayloadId) {
