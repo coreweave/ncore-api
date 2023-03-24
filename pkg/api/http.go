@@ -395,6 +395,16 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 
   macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
 
+  if len(macAddress) != 12 {
+    var errors []string
+    errors = append(errors, "Invalid mac_address")
+    errorsJson := &jsonErrors{
+      Errors: errors,
+    }
+    errorsJson.writeErrors(w)
+    return
+  }
+
 	log.Printf("Request Host: %s", r.Host)
 	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
 	log.Printf("Request RequestURI: %s", r.RequestURI)
@@ -405,12 +415,26 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 
 	parameters, err := s.ipxe.GetIpxeConfig(r.Context(), macAddress)
 	switch {
-	case err != nil || parameters == nil:
-		log.Printf("Getting API Ipxe default image for macAddress: %s", macAddress)
+	case err != nil:
+		log.Printf("Error getting IpxeConfig from template for macAddress: %s", macAddress)
+    log.Printf("Using API default IpxeConfig for macAddress: %s", macAddress)
 		parameters := s.ipxe.GetIpxeApiDefault()
 		ipxeTemplate.Execute(w, parameters)
 	case parameters == nil:
-		http.Error(w, "parameters not found", http.StatusNotFound)
+    log.Printf("Using API default IpxeConfig for macAddress: %s", macAddress)
+		parameters := s.ipxe.GetIpxeApiDefault()
+		ipxeTemplate.Execute(w, parameters)
+		var indc = &ipxe.IpxeNodeDbConfig{
+      ImageTag:    parameters.ImageTag,
+      ImageType:   parameters.ImageType,
+      MacAddress:   macAddress,
+    }
+    log.Printf("Adding db entry: %v", indc)
+    s.ipxe.CreateNodeIpxeConfig(r.Context(), indc)
+  case parameters.ImageTag == "default":
+    log.Printf("Using API default IpxeConfig for macAddress: %s", macAddress)
+		parameters := s.ipxe.GetIpxeApiDefault()
+		ipxeTemplate.Execute(w, parameters)
 	default:
 		ipxeTemplate.Execute(w, parameters)
 	}

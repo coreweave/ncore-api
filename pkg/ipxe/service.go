@@ -14,6 +14,8 @@ func NewService(
     s3Presigner s3.HttpPresigner,
     ipxeTemplateFile string,
     ipxeDefaultImage string,
+    ipxeDefaultImageTag string,
+    ipxeDefaultImageType string,
     ipxeDefaultBucket string,
 ) *Service {
 	log.Printf("Starting Ipxe service")
@@ -23,6 +25,8 @@ func NewService(
 		s3Presigner:       s3Presigner,
 		ipxeTemplateFile:  ipxeTemplateFile,
 		ipxeDefaultImage:  ipxeDefaultImage,
+    ipxeDefaultImageTag: ipxeDefaultImageTag,
+    ipxeDefaultImageType: ipxeDefaultImageType,
 		ipxeDefaultBucket: ipxeDefaultBucket,
 	}
 }
@@ -34,6 +38,8 @@ type Service struct {
 	s3Presigner       s3.HttpPresigner
 	ipxeTemplateFile  string
 	ipxeDefaultImage  string
+  ipxeDefaultImageTag string
+  ipxeDefaultImageType string
 	ipxeDefaultBucket string
 }
 
@@ -43,6 +49,7 @@ type Service struct {
 type DB interface {
 	// GetIpxe returns an IpxeConfig for a macAddress.
 	GetIpxeDbConfig(ctx context.Context, macAddress string) (*IpxeDbConfig, error)
+	CreateNodeIpxeConfig(ctx context.Context, config *IpxeNodeDbConfig) (*IpxeNodeDbConfig, error)
 	CreateIpxeImage(ctx context.Context, config *IpxeDbConfig) (*IpxeConfig, error)
 	DeleteIpxeImage(ctx context.Context, config *IpxeDbDeleteConfig) (*IpxeDbConfig, error)
 }

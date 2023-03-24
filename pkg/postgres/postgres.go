@@ -65,6 +65,12 @@ type ipxeDbConfig struct {
   ImageCmdline string
 }
 
+type ipxeDbNodeConfig struct {
+	ImageTag    string
+	ImageType   string
+  MacAddress  string
+}
+
 func (ic *ipxeDbConfig) dto() *ipxe.IpxeDbConfig {
 	return &ipxe.IpxeDbConfig{
 		ImageName:   ic.ImageName,
@@ -248,8 +254,46 @@ func (db *DB) GetPayloadParameters(ctx context.Context, payloadId string) (inter
 // GetIpxe returns an IpxeConfig for a macAddress.
 // TODO: https://github.com/uber-go/zap
 func (db *DB) GetIpxeDbConfig(ctx context.Context, macAddress string) (*ipxe.IpxeDbConfig, error) {
+	var idnc []ipxeDbNodeConfig
 	var ic []ipxeDbConfig
-	sql := fmt.Sprintf(`
+	idnc_sql := fmt.Sprintf(`
+    SELECT
+        image_tag,
+        image_type,
+        mac_address
+    FROM node_images
+    WHERE
+        mac_address = $1
+  `)
+  idnc_rows, err := db.conn(ctx).Query(ctx, idnc_sql,
+    macAddress,
+  )
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return nil, err
+	}
+	if err == nil {
+		idnc, err = pgx.CollectRows(idnc_rows, pgx.RowToStructByPos[ipxeDbNodeConfig])
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, pgx.ErrNoRows
+	}
+	if err != nil {
+		log.Printf("cannot get image_tag and image_type from database: %v\n", err)
+		return nil, errors.New("cannot get image_tag and image_type from database")
+	}
+	if len(idnc) == 0 {
+		return nil, errors.New("no image_tag and image_type found in database")
+	}
+  if idnc[0].ImageTag == "default" || idnc[0].ImageType == "default" {
+    return &ipxe.IpxeDbConfig{
+      ImageName:    "default",
+      ImageBucket:  "default",
+      ImageTag:     "default",
+      ImageType:    "default",
+      ImageCmdline: "default",
+    }, nil
+  }
+  ic_sql := fmt.Sprintf(`
     SELECT
         images.image_name,
         images.image_bucket,
@@ -262,9 +306,11 @@ func (db *DB) GetIpxeDbConfig(ctx context.Context, macAddress string) (*ipxe.Ipx
     ) AND (
       node_images.image_type = images.image_type
     )
-      WHERE node_images.mac_address = '%s';
-	`, macAddress)
-	ic_rows, err := db.conn(ctx).Query(ctx, sql)
+      WHERE node_images.mac_address = $1;
+	`)
+	ic_rows, err := db.conn(ctx).Query(ctx, ic_sql,
+    macAddress,
+  )
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return nil, err
 	}
@@ -282,6 +328,35 @@ func (db *DB) GetIpxeDbConfig(ctx context.Context, macAddress string) (*ipxe.Ipx
 		return nil, errors.New("no image found in database")
 	}
 	return ic[0].dto(), nil
+}
+
+// CreateNodeIpxeConfig inserts an IpxeNodeDbConfig into ipxe.node_images.
+func (db *DB) CreateNodeIpxeConfig(ctx context.Context, config *ipxe.IpxeNodeDbConfig) (*ipxe.IpxeNodeDbConfig, error) {
+	const sql = `
+    INSERT INTO node_images (
+        image_tag,
+        image_type,
+        mac_address
+    )
+    VALUES (
+        $1,
+        $2,
+        $3
+    );
+	`
+	switch _, err := db.conn(ctx).Exec(ctx, sql,
+		config.ImageTag,
+		config.ImageType,
+		config.MacAddress,
+	); {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return nil, err
+	case err != nil:
+		log.Printf("CreateNodeIpxeConfig: error adding entry for macAddress: %s %v\n", config.MacAddress, err)
+		return nil, fmt.Errorf(`error adding entry for macAddress: %s`, config.MacAddress)
+  default:
+    return config, nil
+  }
 }
 
 // CreateIpxeImage inserts an IpxeDbConfig into ipxe.images.

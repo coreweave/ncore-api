@@ -59,6 +59,8 @@ func main() {
 		s3Host,
 		ipxeTemplateFile,
 		ipxeDefaultImage,
+    ipxeDefaultImageTag,
+    ipxeDefaultImageType,
 		ipxeDefaultBucket,
     payloadsDefaultPayloadId,
     payloadsDefaultPayloadDirectory string
@@ -68,6 +70,8 @@ func main() {
 	flag.StringVar(&s3Host, "s3.host", "https://accel-object.ord1.coreweave.com", "S3 Storage endpoint")
 	flag.StringVar(&ipxeTemplateFile, "ipxe.template", "pkg/ipxe/templates/template_https.ipxe", "Relative path to ipxe template file")
 	flag.StringVar(&ipxeDefaultImage, "ipxe.default.image", "ncore-1.24.0-nodisplay", "Default image used when database is unavailable or no entry found for macAddress")
+	flag.StringVar(&ipxeDefaultImageTag, "ipxe.default.imageTag", "default", "Default image_tag entry added for node when no entry found for macAddress")
+	flag.StringVar(&ipxeDefaultImageType, "ipxe.default.imageType", "default", "Default image_type entry added for node when no entry found for macAddress")
 	flag.StringVar(&ipxeDefaultBucket, "ipxe.default.bucket", "coreweave-ncore-images", "Default image used when database is unavailable or no entry found for macAddress")
 	flag.StringVar(&payloadsDefaultPayloadId, "payloads.default.payloadId", "default", "Default PayloadId assigned when no entry found for macAddress")
 	flag.StringVar(&payloadsDefaultPayloadDirectory, "payloads.default.payloadDirectory", "kube-worker", "Default PayloadDirectory assigned when no entry found for macAddress")
@@ -112,6 +116,8 @@ func main() {
 			presignClient,
 			ipxeTemplateFile,
 			ipxeDefaultImage,
+      ipxeDefaultImageTag,
+      ipxeDefaultImageType,
 			ipxeDefaultBucket,
 		),
 		HTTPAddress: httpAddr,
