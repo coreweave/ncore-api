@@ -81,14 +81,14 @@ type httpServer struct {
 func (s *httpServer) Run(ctx context.Context, address string) error {
 	handler := NewHTTPServer(s.ipxe, s.payloads)
 
-  if s.middleware != nil {
+	if s.middleware != nil {
 		log.Printf("Using middleware")
 		handler = s.middleware(handler)
 	}
 
 	s.http = &http.Server{
-		Addr:    address,
-		Handler: handler,
+		Addr:              address,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	log.Printf("HTTP server listening at %s\n", address)

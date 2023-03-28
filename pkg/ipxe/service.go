@@ -9,38 +9,38 @@ import (
 
 // NewService creates an API service.
 func NewService(
-    db DB,
-    s3Svc s3.S3Svc,
-    s3Presigner s3.HttpPresigner,
-    ipxeTemplateFile string,
-    ipxeDefaultImage string,
-    ipxeDefaultImageTag string,
-    ipxeDefaultImageType string,
-    ipxeDefaultBucket string,
+	db DB,
+	s3Svc s3.S3Svc,
+	s3Presigner s3.HttpPresigner,
+	ipxeTemplateFile string,
+	ipxeDefaultImage string,
+	ipxeDefaultImageTag string,
+	ipxeDefaultImageType string,
+	ipxeDefaultBucket string,
 ) *Service {
 	log.Printf("Starting Ipxe service")
 	return &Service{
-		db:                db,
-    s3Svc:             s3Svc,
-		s3Presigner:       s3Presigner,
-		ipxeTemplateFile:  ipxeTemplateFile,
-		ipxeDefaultImage:  ipxeDefaultImage,
-    ipxeDefaultImageTag: ipxeDefaultImageTag,
-    ipxeDefaultImageType: ipxeDefaultImageType,
-		ipxeDefaultBucket: ipxeDefaultBucket,
+		db:                   db,
+		s3Svc:                s3Svc,
+		s3Presigner:          s3Presigner,
+		ipxeTemplateFile:     ipxeTemplateFile,
+		ipxeDefaultImage:     ipxeDefaultImage,
+		ipxeDefaultImageTag:  ipxeDefaultImageTag,
+		ipxeDefaultImageType: ipxeDefaultImageType,
+		ipxeDefaultBucket:    ipxeDefaultBucket,
 	}
 }
 
 // Service for the API.
 type Service struct {
-	db                DB
-  s3Svc             s3.S3Svc
-	s3Presigner       s3.HttpPresigner
-	ipxeTemplateFile  string
-	ipxeDefaultImage  string
-  ipxeDefaultImageTag string
-  ipxeDefaultImageType string
-	ipxeDefaultBucket string
+	db                   DB
+	s3Svc                s3.S3Svc
+	s3Presigner          s3.HttpPresigner
+	ipxeTemplateFile     string
+	ipxeDefaultImage     string
+	ipxeDefaultImageTag  string
+	ipxeDefaultImageType string
+	ipxeDefaultBucket    string
 }
 
 // DB layer.
