@@ -33,6 +33,11 @@ type DB interface {
 	// GetPayload returns a payload for a node.
 	GetNodePayload(ctx context.Context, macAddress string) (*NodePayload, error)
 
+	// GetSubnetDefaultPayload accepts an ip address string and checks if payloads.subnet_default_payloads table
+	// contains a payload_id for the corresponding cidr
+	// Returns a Payload
+	GetSubnetDefaultPayload(ctx context.Context, ipAddress string) (*Payload, error)
+
 	// GetAvailablePayloads returns a list of available payloads
 	GetAvailablePayloads(ctx context.Context) []string
 

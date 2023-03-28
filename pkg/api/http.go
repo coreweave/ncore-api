@@ -101,7 +101,9 @@ func (s *HTTPServer) handleNodePayload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		payload, err := s.payloads.GetNodePayload(r.Context(), macAddress)
+		log.Printf("Checking node_payloads for macAddress: %s", macAddress)
+		assignedPayload, err := s.payloads.GetNodePayload(r.Context(), macAddress)
+
 		switch {
 		case err == context.Canceled, err == context.DeadlineExceeded:
 			// TODO: Add warning log
@@ -109,32 +111,54 @@ func (s *HTTPServer) handleNodePayload(w http.ResponseWriter, r *http.Request) {
 		case err != nil:
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			log.Println(err)
-		case payload == nil:
+		case assignedPayload == nil:
 			if len(macAddress) == 7 {
 				http.Error(w, fmt.Sprintf("payload not found for hostname: %s", macAddress), http.StatusNotFound)
 			} else {
-				log.Printf("Adding default payload entry for macAddress: %s", macAddress)
-				payload, err := s.payloads.AddDefaultNodePayload(r.Context(), macAddress)
-				var errors []string
-				if err != nil {
-					errorsJson := &jsonErrors{
-						Errors: append(errors, err.Error()),
+				requestIp := strings.Split(r.RemoteAddr, ":")[0]
+				log.Printf("Checking subnet_default_payloads for requestIp: %s", requestIp)
+				subnetPayload, err := s.payloads.GetSubnetDefaultPayload(r.Context(), requestIp)
+
+				switch {
+				case err != nil:
+					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+					log.Println(err)
+				case subnetPayload != nil:
+					subnetNodePayload := &payloads.NodePayload{
+						PayloadId:        subnetPayload.PayloadId,
+						PayloadDirectory: subnetPayload.PayloadDirectory,
+						MacAddress:       macAddress,
 					}
-					errorsJson.writeErrors(w)
-					return
-				}
-				w.Header().Set("Content-Type", "application/json")
-				enc := json.NewEncoder(w)
-				enc.SetIndent("", "\t")
-				if err := enc.Encode(payload); err != nil {
-					log.Printf("cannot json encode payload request: %v", err)
+					w.Header().Set("Content-Type", "application/json")
+					enc := json.NewEncoder(w)
+					enc.SetIndent("", "\t")
+					if err := enc.Encode(subnetNodePayload); err != nil {
+						log.Printf("cannot json encode payload request: %v", err)
+					}
+				default:
+					log.Printf("Adding default payload entry for macAddress: %s", macAddress)
+					defaultNodePayload, err := s.payloads.AddDefaultNodePayload(r.Context(), macAddress)
+					var errors []string
+					if err != nil {
+						errorsJson := &jsonErrors{
+							Errors: append(errors, err.Error()),
+						}
+						errorsJson.writeErrors(w)
+						return
+					}
+					w.Header().Set("Content-Type", "application/json")
+					enc := json.NewEncoder(w)
+					enc.SetIndent("", "\t")
+					if err := enc.Encode(defaultNodePayload); err != nil {
+						log.Printf("cannot json encode payload request: %v", err)
+					}
 				}
 			}
 		default:
 			w.Header().Set("Content-Type", "application/json")
 			enc := json.NewEncoder(w)
 			enc.SetIndent("", "\t")
-			if err := enc.Encode(payload); err != nil {
+			if err := enc.Encode(assignedPayload); err != nil {
 				log.Printf("cannot json encode payload request: %v", err)
 			}
 		}

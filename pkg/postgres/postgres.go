@@ -57,6 +57,18 @@ func (np *nodePayload) dto() *payloads.NodePayload {
 	}
 }
 
+type payload struct {
+	PayloadId        string
+	PayloadDirectory string
+}
+
+func (p *payload) dto() *payloads.Payload {
+	return &payloads.Payload{
+		PayloadId:        p.PayloadId,
+		PayloadDirectory: p.PayloadDirectory,
+	}
+}
+
 type ipxeDbConfig struct {
 	ImageName    string
 	ImageBucket  string
@@ -114,6 +126,40 @@ func (db *DB) GetNodePayload(ctx context.Context, macAddress string) (*payloads.
 	}
 
 	return np[0].dto(), nil
+}
+
+// GetSubnetDefaultPayload accepts an ip address string and checks if payloads.subnet_default_payloads table
+// contains a payload_id for the corresponding cidr
+// Returns a Payload
+func (db *DB) GetSubnetDefaultPayload(ctx context.Context, ipAddress string) (*payloads.Payload, error) {
+	var sdp []payload
+	sdp_sql := fmt.Sprintf(`
+			SELECT
+        subnet_default_payloads.payload_id,
+				payloads.payload_directory
+			FROM subnet_default_payloads
+			JOIN payloads on (subnet_default_payloads.payload_id = payloads.payload_id)
+			WHERE subnet >> '%s'
+	`, ipAddress) // #nosec G201
+	sdp_rows, err := db.conn(ctx).Query(ctx, sdp_sql)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return nil, err
+	}
+	if err == nil {
+		sdp, err = pgx.CollectRows(sdp_rows, pgx.RowToStructByPos[payload])
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		log.Printf("cannot get default payload for subnet from database: %v\n", err)
+		return nil, errors.New("cannot get default payload for subnet from database")
+	}
+	if len(sdp) == 0 {
+		return nil, nil
+	}
+
+	return sdp[0].dto(), nil
 }
 
 func (db *DB) AddDefaultNodePayload(ctx context.Context, config *payloads.NodePayloadDb) (*payloads.NodePayloadDb, error) {
