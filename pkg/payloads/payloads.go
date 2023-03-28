@@ -65,15 +65,16 @@ func (s *Service) GetSubnetDefaultPayload(ctx context.Context, ipAddress string)
 }
 
 // AddDefaultNodePayload adds a db entry with defaults for mac_address.
-func (s *Service) AddDefaultNodePayload(ctx context.Context, macAddress string) (*NodePayloadDb, error) {
+func (s *Service) AddDefaultNodePayload(ctx context.Context, macAddress string) (*NodePayload, error) {
 	if macAddress == "" {
 		return nil, ValidationError{"missing payload macAddress"}
 	}
-	var npd = &NodePayloadDb{
-		PayloadId:  s.payloadsDefaultPayloadId,
-		MacAddress: macAddress,
+	var np = &NodePayload{
+		PayloadId:        s.payloadsDefaultPayloadId,
+		PayloadDirectory: s.payloadsDefaultPayloadDirectory,
+		MacAddress:       macAddress,
 	}
-	return s.db.AddDefaultNodePayload(ctx, npd)
+	return s.db.AddDefaultNodePayload(ctx, np)
 }
 
 // GetAvailablePayloads returns a list of available payloads
