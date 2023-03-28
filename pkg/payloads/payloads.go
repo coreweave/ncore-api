@@ -22,8 +22,6 @@ type NodePayloadDb struct {
 type Payload struct {
 	PayloadId        string
 	PayloadDirectory string
-	CreatedAt        time.Time
-	ModifiedAt       time.Time
 }
 
 // PayloadSchema for payload_id.
@@ -54,6 +52,16 @@ func (s *Service) GetNodePayload(ctx context.Context, macAddress string) (*NodeP
 		return nil, ValidationError{"missing payload macAddress"}
 	}
 	return s.db.GetNodePayload(ctx, macAddress)
+}
+
+// GetSubnetDefaultPayload accepts an ip address string and checks if payloads.subnet_default_payloads table
+// contains a payload_id for the corresponding cidr
+// Returns a Payload
+func (s *Service) GetSubnetDefaultPayload(ctx context.Context, ipAddress string) (*Payload, error) {
+	if ipAddress == "" {
+		return nil, ValidationError{"missing payload ipAddress"}
+	}
+	return s.db.GetSubnetDefaultPayload(ctx, ipAddress)
 }
 
 // AddDefaultNodePayload adds a db entry with defaults for mac_address.
