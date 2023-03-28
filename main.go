@@ -59,11 +59,11 @@ func main() {
 		s3Host,
 		ipxeTemplateFile,
 		ipxeDefaultImage,
-    ipxeDefaultImageTag,
-    ipxeDefaultImageType,
+		ipxeDefaultImageTag,
+		ipxeDefaultImageType,
 		ipxeDefaultBucket,
-    payloadsDefaultPayloadId,
-    payloadsDefaultPayloadDirectory string
+		payloadsDefaultPayloadId,
+		payloadsDefaultPayloadDirectory string
 	)
 
 	flag.StringVar(&httpAddr, "http", "localhost:8080", "HTTP service address to listen for incoming requests on")
@@ -97,7 +97,7 @@ func main() {
 	defer pgPoolIpxe.Close()
 
 	log.Printf("s3Host: %v", s3Host)
-  s3Svc := s3.NewClient(s3Host)
+	s3Svc := s3.NewClient(s3Host)
 	presignClient := s3.NewPresigner(*s3Svc)
 
 	s := &api.Server{
@@ -105,19 +105,19 @@ func main() {
 			&postgres.DB{
 				Postgres: pgPoolPayloads,
 			},
-      payloadsDefaultPayloadId,
-      payloadsDefaultPayloadDirectory,
-    ),
+			payloadsDefaultPayloadId,
+			payloadsDefaultPayloadDirectory,
+		),
 		Ipxe: ipxe.NewService(
 			&postgres.DB{
 				Postgres: pgPoolIpxe,
 			},
-      *s3Svc,
+			*s3Svc,
 			presignClient,
 			ipxeTemplateFile,
 			ipxeDefaultImage,
-      ipxeDefaultImageTag,
-      ipxeDefaultImageType,
+			ipxeDefaultImageTag,
+			ipxeDefaultImageType,
 			ipxeDefaultBucket,
 		),
 		HTTPAddress: httpAddr,

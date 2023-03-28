@@ -14,8 +14,8 @@ type NodePayload struct {
 
 // NodePayload payloads.node_payloads entry for mac_address.
 type NodePayloadDb struct {
-	PayloadId        string
-	MacAddress       string
+	PayloadId  string
+	MacAddress string
 }
 
 // Payload for payload_id.
@@ -62,15 +62,15 @@ func (s *Service) AddDefaultNodePayload(ctx context.Context, macAddress string) 
 		return nil, ValidationError{"missing payload macAddress"}
 	}
 	var npd = &NodePayloadDb{
-		PayloadId: s.payloadsDefaultPayloadId,
+		PayloadId:  s.payloadsDefaultPayloadId,
 		MacAddress: macAddress,
 	}
 	return s.db.AddDefaultNodePayload(ctx, npd)
 }
 
 // GetAvailablePayloads returns a list of available payloads
-func (s *Service) GetAvailablePayloads(ctx context.Context) ([]string) {
-  return s.db.GetAvailablePayloads(ctx)
+func (s *Service) GetAvailablePayloads(ctx context.Context) []string {
+	return s.db.GetAvailablePayloads(ctx)
 }
 
 // UpdateNodePayload updates the PayloadId for mac_address.

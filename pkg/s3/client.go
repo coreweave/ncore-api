@@ -27,11 +27,11 @@ func NewClient(host string) *S3Svc {
 	}
 
 	s3Client := s3.NewFromConfig(sdkConfig)
-  return &S3Svc{Client: s3Client}
+	return &S3Svc{Client: s3Client}
 }
 
 type S3Svc struct {
-  Client *s3.Client
+	Client *s3.Client
 }
 
 func (svc *S3Svc) GetObject(
@@ -44,14 +44,14 @@ func (svc *S3Svc) GetObject(
 	if err != nil {
 		log.Printf("Couldn't get GetObjectOutput for %v:%v. Here's why: %v\n",
 			bucketName, objectKey, err)
-    return nil, err
-  }
-  defer request.Body.Close()
-  body, err := io.ReadAll(request.Body)
-  if err != nil {
-    log.Printf("Couldn't read object body from %v. Here's why: %v\n", objectKey, err)
-    return nil, err
-  }
+		return nil, err
+	}
+	defer request.Body.Close()
+	body, err := io.ReadAll(request.Body)
+	if err != nil {
+		log.Printf("Couldn't read object body from %v. Here's why: %v\n", objectKey, err)
+		return nil, err
+	}
 	return body, err
 }
 

@@ -58,26 +58,26 @@ func (np *nodePayload) dto() *payloads.NodePayload {
 }
 
 type ipxeDbConfig struct {
-	ImageName   string
-	ImageBucket string
-	ImageTag    string
-	ImageType   string
-  ImageCmdline string
+	ImageName    string
+	ImageBucket  string
+	ImageTag     string
+	ImageType    string
+	ImageCmdline string
 }
 
 type ipxeDbNodeConfig struct {
-	ImageTag    string
-	ImageType   string
-  MacAddress  string
+	ImageTag   string
+	ImageType  string
+	MacAddress string
 }
 
 func (ic *ipxeDbConfig) dto() *ipxe.IpxeDbConfig {
 	return &ipxe.IpxeDbConfig{
-		ImageName:   ic.ImageName,
-		ImageBucket: ic.ImageBucket,
-		ImageTag:    ic.ImageTag,
-		ImageType:   ic.ImageType,
-    ImageCmdline: ic.ImageCmdline,
+		ImageName:    ic.ImageName,
+		ImageBucket:  ic.ImageBucket,
+		ImageTag:     ic.ImageTag,
+		ImageType:    ic.ImageType,
+		ImageCmdline: ic.ImageCmdline,
 	}
 }
 
@@ -129,9 +129,9 @@ func (db *DB) AddDefaultNodePayload(ctx context.Context, config *payloads.NodePa
     );
 	`
 	switch _, err := db.conn(ctx).Exec(ctx, npd_sql,
-    config.PayloadId,
-    config.MacAddress,
-  ); {
+		config.PayloadId,
+		config.MacAddress,
+	); {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return nil, err
 	case err != nil:
@@ -140,15 +140,15 @@ func (db *DB) AddDefaultNodePayload(ctx context.Context, config *payloads.NodePa
 	}
 
 	npd = &payloads.NodePayloadDb{
-		PayloadId:   config.PayloadId,
-		MacAddress:   config.MacAddress,
+		PayloadId:  config.PayloadId,
+		MacAddress: config.MacAddress,
 	}
 	return npd, nil
 }
 
 // GetAvailablePayloads returns a list of available payloads
-func (db *DB) GetAvailablePayloads(ctx context.Context) ([]string) {
-  const p_sql = `
+func (db *DB) GetAvailablePayloads(ctx context.Context) []string {
+	const p_sql = `
     SELECT ARRAY(
       SELECT
           payload_id
@@ -156,29 +156,29 @@ func (db *DB) GetAvailablePayloads(ctx context.Context) ([]string) {
           payloads
     )
   `
-  p_rows, err := db.conn(ctx).Query(ctx, p_sql)
+	p_rows, err := db.conn(ctx).Query(ctx, p_sql)
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return nil
 	}
-  var availablePayloads []string
+	var availablePayloads []string
 	if err == nil {
-    defer p_rows.Close()
-    for p_rows.Next() {
-      err = p_rows.Scan(&availablePayloads)
-      if err != nil {
-        log.Printf("Error - GetAvailablePayloads - %v", err)
-      }
-      log.Printf("AvailablePayloads - %v", availablePayloads)
-    }
-    return availablePayloads
-  }
-  return []string{}
+		defer p_rows.Close()
+		for p_rows.Next() {
+			err = p_rows.Scan(&availablePayloads)
+			if err != nil {
+				log.Printf("Error - GetAvailablePayloads - %v", err)
+			}
+			log.Printf("AvailablePayloads - %v", availablePayloads)
+		}
+		return availablePayloads
+	}
+	return []string{}
 }
 
 // UpdateNodePayload updates the PayloadId for mac_address.
 func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloadDb) (*payloads.NodePayloadDb, error) {
 	var npd *payloads.NodePayloadDb
-  log.Printf("UpdateNodePayload: %v\n", *config)
+	log.Printf("UpdateNodePayload: %v\n", *config)
 	const npd_sql = `
     UPDATE node_payloads
     SET
@@ -187,23 +187,23 @@ func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloa
         mac_address like $2
   `
 	switch commandTag, err := db.conn(ctx).Exec(ctx, npd_sql,
-    config.PayloadId,
-    config.MacAddress,
-  ); {
+		config.PayloadId,
+		config.MacAddress,
+	); {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return nil, err
 	case err != nil:
 		log.Printf("Error - UpdateNodePayload: %v - %v\n", err, config)
 		return nil, fmt.Errorf(`cannot update payload for config: %v`, *config)
-  case strings.HasPrefix(commandTag.String(), "UPDATE 0"):
-    log.Printf("UpdateNodePayload: mac_address doesn't exist: %v\n", config)
+	case strings.HasPrefix(commandTag.String(), "UPDATE 0"):
+		log.Printf("UpdateNodePayload: mac_address doesn't exist: %v\n", config)
 		return nil, fmt.Errorf(`mac_address not in database: %v`, *config)
-  default:
-    npd = &payloads.NodePayloadDb{
-      PayloadId:   config.PayloadId,
-      MacAddress:   config.MacAddress,
-    }
-  }
+	default:
+		npd = &payloads.NodePayloadDb{
+			PayloadId:  config.PayloadId,
+			MacAddress: config.MacAddress,
+		}
+	}
 	return npd, nil
 }
 
@@ -265,9 +265,9 @@ func (db *DB) GetIpxeDbConfig(ctx context.Context, macAddress string) (*ipxe.Ipx
     WHERE
         mac_address = $1
   `)
-  idnc_rows, err := db.conn(ctx).Query(ctx, idnc_sql,
-    macAddress,
-  )
+	idnc_rows, err := db.conn(ctx).Query(ctx, idnc_sql,
+		macAddress,
+	)
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return nil, err
 	}
@@ -284,16 +284,16 @@ func (db *DB) GetIpxeDbConfig(ctx context.Context, macAddress string) (*ipxe.Ipx
 	if len(idnc) == 0 {
 		return nil, errors.New("no image_tag and image_type found in database")
 	}
-  if idnc[0].ImageTag == "default" || idnc[0].ImageType == "default" {
-    return &ipxe.IpxeDbConfig{
-      ImageName:    "default",
-      ImageBucket:  "default",
-      ImageTag:     "default",
-      ImageType:    "default",
-      ImageCmdline: "default",
-    }, nil
-  }
-  ic_sql := fmt.Sprintf(`
+	if idnc[0].ImageTag == "default" || idnc[0].ImageType == "default" {
+		return &ipxe.IpxeDbConfig{
+			ImageName:    "default",
+			ImageBucket:  "default",
+			ImageTag:     "default",
+			ImageType:    "default",
+			ImageCmdline: "default",
+		}, nil
+	}
+	ic_sql := fmt.Sprintf(`
     SELECT
         images.image_name,
         images.image_bucket,
@@ -309,8 +309,8 @@ func (db *DB) GetIpxeDbConfig(ctx context.Context, macAddress string) (*ipxe.Ipx
       WHERE node_images.mac_address = $1;
 	`)
 	ic_rows, err := db.conn(ctx).Query(ctx, ic_sql,
-    macAddress,
-  )
+		macAddress,
+	)
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return nil, err
 	}
@@ -354,9 +354,9 @@ func (db *DB) CreateNodeIpxeConfig(ctx context.Context, config *ipxe.IpxeNodeDbC
 	case err != nil:
 		log.Printf("CreateNodeIpxeConfig: error adding entry for macAddress: %s %v\n", config.MacAddress, err)
 		return nil, fmt.Errorf(`error adding entry for macAddress: %s`, config.MacAddress)
-  default:
-    return config, nil
-  }
+	default:
+		return config, nil
+	}
 }
 
 // CreateIpxeImage inserts an IpxeDbConfig into ipxe.images.
@@ -395,11 +395,11 @@ func (db *DB) CreateIpxeImage(ctx context.Context, config *ipxe.IpxeDbConfig) (*
 		return nil, errors.New("cannot create image")
 	}
 	ic = &ipxe.IpxeConfig{
-		ImageName:   config.ImageName,
-		ImageBucket: config.ImageBucket,
-		ImageTag:    config.ImageTag,
-		ImageType:   config.ImageType,
-		ImageCmdline:   config.ImageCmdline,
+		ImageName:    config.ImageName,
+		ImageBucket:  config.ImageBucket,
+		ImageTag:     config.ImageTag,
+		ImageType:    config.ImageType,
+		ImageCmdline: config.ImageCmdline,
 	}
 	return ic, nil
 }
@@ -420,10 +420,10 @@ func (db *DB) DeleteIpxeImage(ctx context.Context, config *ipxe.IpxeDbDeleteConf
         image_type
     )
 	`,
-    config.ImageTag,
-    config.ImageType,
-  )
-  row := db.conn(ctx).QueryRow(ctx, sql)
+		config.ImageTag,
+		config.ImageType,
+	)
+	row := db.conn(ctx).QueryRow(ctx, sql)
 	switch err := row.Scan(&idc); {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return nil, err
@@ -434,8 +434,8 @@ func (db *DB) DeleteIpxeImage(ctx context.Context, config *ipxe.IpxeDbDeleteConf
 		log.Printf("cannot delete image: %v\n", err)
 		return nil, errors.New("cannot delete image")
 	default:
-    return idc.dto(), nil
-  }
+		return idc.dto(), nil
+	}
 }
 
 func (db *DB) createIpxeImagePgError(err error) error {
@@ -456,9 +456,9 @@ func (db *DB) createIpxeImagePgError(err error) error {
 			return errors.New("invalid image_tag")
 		case "image_type":
 			return errors.New("invalid image_type")
-    case "image_cmdline":
-      return errors.New("invalid image_cmdline")
-    }
+		case "image_cmdline":
+			return errors.New("invalid image_cmdline")
+		}
 	}
 	return nil
 }
