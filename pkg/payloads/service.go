@@ -41,8 +41,8 @@ type DB interface {
 	// GetAvailablePayloads returns a list of available payloads
 	GetAvailablePayloads(ctx context.Context) []string
 
-	// AddDefaultNodePayload adds a db entry with defaults for mac_address.
-	AddDefaultNodePayload(ctx context.Context, config *NodePayload) (*NodePayload, error)
+	// AddNodePayload adds a NodePayloadDb entry for mac_address
+	AddNodePayload(ctx context.Context, config *NodePayloadDb) error
 
 	// UpdateNodePayload updates the PayloadId for mac_address.
 	UpdateNodePayload(ctx context.Context, config *NodePayloadDb) (*NodePayloadDb, error)

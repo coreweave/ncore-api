@@ -162,7 +162,7 @@ func (db *DB) GetSubnetDefaultPayload(ctx context.Context, ipAddress string) (*p
 	return sdp[0].dto(), nil
 }
 
-func (db *DB) AddDefaultNodePayload(ctx context.Context, config *payloads.NodePayload) (*payloads.NodePayload, error) {
+func (db *DB) AddNodePayload(ctx context.Context, nodePayloadDb *payloads.NodePayloadDb) error {
 	const npd_sql = `
     INSERT INTO node_payloads (
       payload_id,
@@ -174,17 +174,21 @@ func (db *DB) AddDefaultNodePayload(ctx context.Context, config *payloads.NodePa
     );
 	`
 	switch _, err := db.conn(ctx).Exec(ctx, npd_sql,
-		config.PayloadId,
-		config.MacAddress,
+		nodePayloadDb.PayloadId,
+		nodePayloadDb.MacAddress,
 	); {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return nil, err
+		return err
 	case err != nil:
-		log.Printf("Error - AddDefaultNodePayload: macAddress still using default - %v\n", config)
-		return config, nil
+		if sqlErr := db.pgErrorCode(err); sqlErr != nil {
+			if sqlErr.Error() == "23505" {
+				return fmt.Errorf("node_payloads entry already exists for macAddress: %s - payloadId: %s", nodePayloadDb.MacAddress, nodePayloadDb.PayloadId)
+			}
+		}
+		return err
 	}
 
-	return config, nil
+	return nil
 }
 
 // GetAvailablePayloads returns a list of available payloads
@@ -234,6 +238,11 @@ func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloa
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return nil, err
 	case err != nil:
+		if sqlErr := db.pgErrorCode(err); sqlErr != nil {
+			if sqlErr.Error() == "23505" {
+				return nil, fmt.Errorf("node_payloads entry already exists for macAddress: %s - payloadId: %s", config.MacAddress, config.PayloadId)
+			}
+		}
 		log.Printf("Error - UpdateNodePayload: %v - %v\n", err, config)
 		return nil, fmt.Errorf(`cannot update payload for config: %v`, *config)
 	case strings.HasPrefix(commandTag.String(), "UPDATE 0"):
@@ -510,4 +519,12 @@ func (db *DB) deleteIpxeImagePgError(err error) error {
 		return nil
 	}
 	return errors.New("Error deleting (image_tag, image_type): " + pgErr.Code)
+}
+
+func (db *DB) pgErrorCode(err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return nil
+	}
+	return errors.New(pgErr.Code)
 }
