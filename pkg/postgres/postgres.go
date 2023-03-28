@@ -162,8 +162,7 @@ func (db *DB) GetSubnetDefaultPayload(ctx context.Context, ipAddress string) (*p
 	return sdp[0].dto(), nil
 }
 
-func (db *DB) AddDefaultNodePayload(ctx context.Context, config *payloads.NodePayloadDb) (*payloads.NodePayloadDb, error) {
-	var npd *payloads.NodePayloadDb
+func (db *DB) AddDefaultNodePayload(ctx context.Context, config *payloads.NodePayload) (*payloads.NodePayload, error) {
 	const npd_sql = `
     INSERT INTO node_payloads (
       payload_id,
@@ -181,15 +180,11 @@ func (db *DB) AddDefaultNodePayload(ctx context.Context, config *payloads.NodePa
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return nil, err
 	case err != nil:
-		log.Printf("Error - AddDefaultNodePayload: %v - %v\n", err, config)
-		return nil, fmt.Errorf(`cannot create payload for config: %v`, config)
+		log.Printf("Error - AddDefaultNodePayload: macAddress still using default - %v\n", config)
+		return config, nil
 	}
 
-	npd = &payloads.NodePayloadDb{
-		PayloadId:  config.PayloadId,
-		MacAddress: config.MacAddress,
-	}
-	return npd, nil
+	return config, nil
 }
 
 // GetAvailablePayloads returns a list of available payloads
