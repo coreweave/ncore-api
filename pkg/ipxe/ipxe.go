@@ -68,7 +68,7 @@ type IpxeDbDeleteConfig struct {
 }
 
 // GetIpxe returns an IpxeConfig for macAddress.
-func (s *Service) GetIpxeConfig(ctx context.Context, macAddress string) (*IpxeConfig, error) {
+func (s *Service) GetNodeIpxeConfig(ctx context.Context, macAddress string) (*IpxeConfig, error) {
 	var ic *IpxeConfig
 	var idc *IpxeDbConfig
 	if macAddress == "" {
@@ -76,7 +76,7 @@ func (s *Service) GetIpxeConfig(ctx context.Context, macAddress string) (*IpxeCo
 	}
 	idc, err := s.db.GetIpxeDbConfig(ctx, macAddress)
 	if err != nil {
-		log.Printf("GetIpxeConfig: failed to get IpxeConfig from database. %v", err)
+		log.Printf("GetNodeIpxeConfig: failed to get IpxeConfig from database. %v", err)
 		return nil, nil
 	}
 	imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.GetIpxeImagePresignedUrls(
@@ -101,18 +101,53 @@ func (s *Service) GetIpxeConfig(ctx context.Context, macAddress string) (*IpxeCo
 	return ic.dto(), nil
 }
 
+// GetSubnetDefaultIpxeConfig checks ipxe.subnet_default_images for cidr container ipAddress
+// returns an IpxeConfig for the corresponding image_tag and image_type.
+func (s *Service) GetSubnetDefaultIpxeConfig(ctx context.Context, ipAddress string) *IpxeConfig {
+	var ic *IpxeConfig
+	var idc *IpxeDbConfig
+	if ipAddress == "" {
+		return nil
+	}
+	idc, err := s.db.GetSubnetDefaultIpxeDbConfig(ctx, ipAddress)
+	if err != nil {
+		log.Printf("GetSubnetDefaultIpxeDbConfig: failed to get IpxeConfig from database. %v", err)
+		return nil
+	}
+	imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.GetIpxeImagePresignedUrls(
+		idc.ImageBucket,
+		idc.ImageName,
+		900,
+	)
+	if err != nil {
+		log.Printf("GetSubnetDefaultIpxeConfig error for ipAddress: %s - %v", ipAddress, err)
+		return nil
+	}
+	ic = &IpxeConfig{
+		ImageName:           idc.ImageName,
+		ImageBucket:         idc.ImageBucket,
+		ImageTag:            idc.ImageTag,
+		ImageType:           idc.ImageType,
+		ImageInitrdUrlHttps: imageInitrdUrlHttps,
+		ImageKernelUrlHttps: imageKernelUrlHttps,
+		ImageRootFsUrlHttps: imageRootFsUrlHttps,
+		ImageCmdline:        idc.ImageCmdline,
+	}
+	return ic.dto()
+}
+
 // GetIpxe returns an IpxeConfig for macAddress.
 func (s *Service) GetIpxeConfigTemplate(ctx context.Context) (template.Template, error) {
 
-	ipxeTemplate := GetIpxeConfigTemplate(s.ipxeTemplateFile)
+	ipxeTemplate := getIpxeConfigTemplate(s.ipxeTemplateFile)
 
 	return ipxeTemplate, nil
 }
 
 // CreateNodeIpxeConfig inserts an IpxeNodeDbConfig into ipxe.node_images.
-func (s *Service) CreateNodeIpxeConfig(ctx context.Context, config *IpxeNodeDbConfig) (*IpxeNodeDbConfig, error) {
-	indc, err := s.db.CreateNodeIpxeConfig(ctx, config)
-	return indc, err
+func (s *Service) CreateNodeIpxeConfig(ctx context.Context, ipxeNodeDbConfig *IpxeNodeDbConfig) error {
+	err := s.db.CreateNodeIpxeConfig(ctx, ipxeNodeDbConfig)
+	return err
 }
 
 // GetIpxe returns an IpxeConfig for macAddress.

@@ -49,7 +49,8 @@ type Service struct {
 type DB interface {
 	// GetIpxe returns an IpxeConfig for a macAddress.
 	GetIpxeDbConfig(ctx context.Context, macAddress string) (*IpxeDbConfig, error)
-	CreateNodeIpxeConfig(ctx context.Context, config *IpxeNodeDbConfig) (*IpxeNodeDbConfig, error)
+	GetSubnetDefaultIpxeDbConfig(ctx context.Context, ipAddress string) (*IpxeDbConfig, error)
+	CreateNodeIpxeConfig(ctx context.Context, config *IpxeNodeDbConfig) error
 	CreateIpxeImage(ctx context.Context, config *IpxeDbConfig) (*IpxeConfig, error)
 	DeleteIpxeImage(ctx context.Context, config *IpxeDbDeleteConfig) (*IpxeDbConfig, error)
 }
