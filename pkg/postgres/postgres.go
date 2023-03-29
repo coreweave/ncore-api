@@ -334,15 +334,6 @@ func (db *DB) GetIpxeDbConfig(ctx context.Context, macAddress string) (*ipxe.Ipx
 	if len(idnc) == 0 {
 		return nil, errors.New("no image_tag and image_type found in database")
 	}
-	if idnc[0].ImageTag == "default" || idnc[0].ImageType == "default" {
-		return &ipxe.IpxeDbConfig{
-			ImageName:    "default",
-			ImageBucket:  "default",
-			ImageTag:     "default",
-			ImageType:    "default",
-			ImageCmdline: "default",
-		}, nil
-	}
 	ic_sql := fmt.Sprintf(`
     SELECT
         images.image_name,
@@ -380,8 +371,49 @@ func (db *DB) GetIpxeDbConfig(ctx context.Context, macAddress string) (*ipxe.Ipx
 	return ic[0].dto(), nil
 }
 
+// GetIpxe returns an IpxeConfig for a macAddress.
+// TODO: https://github.com/uber-go/zap
+func (db *DB) GetSubnetDefaultIpxeDbConfig(ctx context.Context, ipAddress string) (*ipxe.IpxeDbConfig, error) {
+	var ic []ipxeDbConfig
+
+	ic_sql := `
+    SELECT
+        images.image_name,
+        images.image_bucket,
+        images.image_tag,
+        images.image_type,
+        images.image_cmdline
+    FROM images
+    JOIN subnet_default_images on (
+      subnet_default_images.image_tag = images.image_tag
+    ) AND (
+      subnet_default_images.image_type = images.image_type
+    )
+    WHERE
+        subnet_default_images.subnet >> $1
+	`
+	ic_rows, err := db.conn(ctx).Query(ctx, ic_sql, ipAddress)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return nil, err
+	}
+	if err == nil {
+		ic, err = pgx.CollectRows(ic_rows, pgx.RowToStructByPos[ipxeDbConfig])
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, pgx.ErrNoRows
+	}
+	if err != nil {
+		log.Printf("cannot get ipxe from database: %v\n", err)
+		return nil, errors.New("cannot get ipxe from database")
+	}
+	if len(ic) == 0 {
+		return nil, errors.New("no image found in database")
+	}
+	return ic[0].dto(), nil
+}
+
 // CreateNodeIpxeConfig inserts an IpxeNodeDbConfig into ipxe.node_images.
-func (db *DB) CreateNodeIpxeConfig(ctx context.Context, config *ipxe.IpxeNodeDbConfig) (*ipxe.IpxeNodeDbConfig, error) {
+func (db *DB) CreateNodeIpxeConfig(ctx context.Context, config *ipxe.IpxeNodeDbConfig) error {
 	const sql = `
     INSERT INTO node_images (
         image_tag,
@@ -400,12 +432,16 @@ func (db *DB) CreateNodeIpxeConfig(ctx context.Context, config *ipxe.IpxeNodeDbC
 		config.MacAddress,
 	); {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return nil, err
+		return err
 	case err != nil:
-		log.Printf("CreateNodeIpxeConfig: error adding entry for macAddress: %s %v\n", config.MacAddress, err)
-		return nil, fmt.Errorf(`error adding entry for macAddress: %s`, config.MacAddress)
+		if sqlErr := db.pgErrorCode(err); sqlErr != nil {
+			if sqlErr.Error() == "23505" {
+				return fmt.Errorf("node_images entry already exists for macAddress: %s", config.MacAddress)
+			}
+		}
+		return err
 	default:
-		return config, nil
+		return nil
 	}
 }
 

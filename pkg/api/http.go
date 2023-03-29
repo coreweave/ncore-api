@@ -281,7 +281,7 @@ func (s *HTTPServer) handleGetNodeIpxe(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
 	log.Printf("Request RequestURI: %s", r.RequestURI)
 
-	parameters, err := s.ipxe.GetIpxeConfig(r.Context(), macAddress)
+	parameters, err := s.ipxe.GetNodeIpxeConfig(r.Context(), macAddress)
 	switch {
 	case err == context.Canceled, err == context.DeadlineExceeded:
 		// TODO: Add warning log
@@ -441,30 +441,37 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 		log.Printf("handleGetNodeIpxeTemplate: error getting template: %v", err)
 	}
 
-	parameters, err := s.ipxe.GetIpxeConfig(r.Context(), macAddress)
+	assignedIpxeConfig, err := s.ipxe.GetNodeIpxeConfig(r.Context(), macAddress)
 	switch {
-	case err != nil:
-		log.Printf("Error getting IpxeConfig from template for macAddress: %s", macAddress)
-		log.Printf("Using API default IpxeConfig for macAddress: %s", macAddress)
-		parameters := s.ipxe.GetIpxeApiDefault()
-		ipxeTemplate.Execute(w, parameters)
-	case parameters == nil:
-		log.Printf("Using API default IpxeConfig for macAddress: %s", macAddress)
-		parameters := s.ipxe.GetIpxeApiDefault()
-		ipxeTemplate.Execute(w, parameters)
-		var indc = &ipxe.IpxeNodeDbConfig{
-			ImageTag:   parameters.ImageTag,
-			ImageType:  parameters.ImageType,
+	case assignedIpxeConfig == nil || err != nil:
+		// image_tag, image_type, mac_address missing from ipxe.node_images
+		var defaultNodeIpxeConfig *ipxe.IpxeConfig
+
+		requestIp := strings.Split(r.RemoteAddr, ":")[0]
+		log.Printf("Checking subnet_default_images for requestIp: %s", requestIp)
+		subnetIpxeConfig := s.ipxe.GetSubnetDefaultIpxeConfig(r.Context(), requestIp)
+
+		switch {
+		case subnetIpxeConfig != nil:
+			log.Printf("Using subnetIpxeConfig for macAddress: %s", macAddress)
+			defaultNodeIpxeConfig = subnetIpxeConfig
+		case subnetIpxeConfig == nil:
+			log.Printf("Using API default IpxeConfig for macAddress: %s", macAddress)
+			defaultNodeIpxeConfig = s.ipxe.GetIpxeApiDefault()
+		}
+		defaultNodeIpxeDbConfig := &ipxe.IpxeNodeDbConfig{
+			ImageTag:   defaultNodeIpxeConfig.ImageTag,
+			ImageType:  defaultNodeIpxeConfig.ImageType,
 			MacAddress: macAddress,
 		}
-		log.Printf("Adding db entry: %v", indc)
-		s.ipxe.CreateNodeIpxeConfig(r.Context(), indc)
-	case parameters.ImageTag == "default":
-		log.Printf("Using API default IpxeConfig for macAddress: %s", macAddress)
-		parameters := s.ipxe.GetIpxeApiDefault()
-		ipxeTemplate.Execute(w, parameters)
+		log.Printf("Adding defaulted node_images entry: %v", defaultNodeIpxeDbConfig)
+		if err := s.ipxe.CreateNodeIpxeConfig(r.Context(), defaultNodeIpxeDbConfig); err != nil {
+			log.Print(err.Error())
+		}
+		ipxeTemplate.Execute(w, defaultNodeIpxeConfig)
 	default:
-		ipxeTemplate.Execute(w, parameters)
+		ipxeTemplate.Execute(w, assignedIpxeConfig)
+
 	}
 }
 
