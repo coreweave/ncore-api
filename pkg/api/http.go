@@ -10,6 +10,7 @@ import (
 
 	"github.com/coreweave/ncore-api/pkg/ipxe"
 	"github.com/coreweave/ncore-api/pkg/payloads"
+	"github.com/go-chi/chi/v5"
 )
 
 type jsonErrors struct {
@@ -40,28 +41,27 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service) http.Handler {
 	s := &HTTPServer{
 		ipxe:     i,
 		payloads: p,
-		mux:      http.NewServeMux(),
+		router:   chi.NewRouter(),
 	}
-	// /payload/<macAddress> returns the PayloadId and PayloadDirectory as a json object
-	s.mux.HandleFunc("/api/v2/payload/", s.handleNodePayload)
-	// /payload/config/<payloadId> returns the payload parameters as a json object
-	s.mux.HandleFunc("/api/v2/payload/config/", s.handleGetPayloadParameters)
-	// /ipxe/config/<macAddress> returns the IpxeConfig as a json object
-	s.mux.HandleFunc("/api/v2/ipxe/config/", s.handleGetNodeIpxe)
-	// /ipxe/images/ accepts a json object containing ImageName, ImageBucket, ImageTag, and ImageType
-	s.mux.HandleFunc("/api/v2/ipxe/images/", s.handleIpxeImages)
-	// /ipxe/template/<macAddress> returns the IpxeConfig as a templated ipxe menu
-	s.mux.HandleFunc("/api/v2/ipxe/template/", s.handleGetNodeIpxeTemplate)
-	// /ipxe/s3/<imageName> returns the presigned url to download the image as text
-	s.mux.HandleFunc("/api/v2/ipxe/s3/", s.handleGetIpxeImagePresignedUrls)
-	return s.mux
+	s.router.Get("/", s.handleGetRoot)
+	s.router.HandleFunc("/api/v2/payload/{macAddress}", s.handleNodePayload)
+	s.router.HandleFunc("/api/v2/payload/config/{payloadId}", s.handleGetPayloadParameters)
+	s.router.HandleFunc("/api/v2/ipxe/config/{macAddress}", s.handleGetNodeIpxe)
+	s.router.HandleFunc("/api/v2/ipxe/images/", s.handleIpxeImages)
+	s.router.HandleFunc("/api/v2/ipxe/template/{macAddress}", s.handleGetNodeIpxeTemplate)
+	s.router.HandleFunc("/api/v2/ipxe/s3/{imageName}", s.handleGetIpxeImagePresignedUrls)
+	return s.router
 }
 
 // HTTPServer exposes payloads.Service via HTTP.
 type HTTPServer struct {
 	ipxe     *ipxe.Service
 	payloads *payloads.Service
-	mux      *http.ServeMux
+	router   *chi.Mux
+}
+
+func (s *HTTPServer) handleGetRoot(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("ncore-api"))
 }
 
 func (s *HTTPServer) handleNodePayload(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +79,7 @@ func (s *HTTPServer) handleNodePayload(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == "GET":
 		var errors []string
-		macAddress := r.URL.Path[len("/api/v2/payload/"):]
+		macAddress := chi.URLParam(r, "macAddress")
 		if macAddress == "" || strings.ContainsRune(macAddress, '/') {
 			http.NotFound(w, r)
 			return
@@ -239,7 +239,7 @@ func (s *HTTPServer) handleNodePayload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HTTPServer) handleGetPayloadParameters(w http.ResponseWriter, r *http.Request) {
-	payloadId := r.URL.Path[len("/api/v2/payload/config/"):]
+	payloadId := chi.URLParam(r, "payloadId")
 	if payloadId == "" || strings.ContainsRune(payloadId, '/') {
 		http.NotFound(w, r)
 		return
@@ -269,7 +269,7 @@ func (s *HTTPServer) handleGetPayloadParameters(w http.ResponseWriter, r *http.R
 }
 
 func (s *HTTPServer) handleGetNodeIpxe(w http.ResponseWriter, r *http.Request) {
-	macAddress := r.URL.Path[len("/api/v2/ipxe/config/"):]
+	macAddress := chi.URLParam(r, "macAddress")
 	if macAddress == "" || strings.ContainsRune(macAddress, '/') {
 		http.NotFound(w, r)
 		return
@@ -323,7 +323,7 @@ func (s *HTTPServer) handleIpxeImages(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case r.Method == "GET":
-		imageName := r.URL.Path[len("/api/v2/ipxe/images/"):]
+		imageName := chi.URLParam(r, "imageName")
 		if imageName == "" || strings.ContainsRune(imageName, '/') {
 			// TODO: List all images
 			http.NotFound(w, r)
@@ -415,7 +415,7 @@ func (s *HTTPServer) handleIpxeImages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Request) {
-	macAddress := r.URL.Path[len("/api/v2/ipxe/template/"):]
+	macAddress := chi.URLParam(r, "macAddress")
 	if macAddress == "" || strings.ContainsRune(macAddress, '/') {
 		http.NotFound(w, r)
 		return
@@ -478,10 +478,10 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 // Accepts an imageName
 // Uses ipxeDefaultBucket to get presigned url for image
 func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *http.Request) {
-	image := r.URL.Path[len("/api/v2/ipxe/s3/"):]
+	imageName := chi.URLParam(r, "imageName")
 	bucket := ""
 	lifetimeSecs := int64(900)
-	if image == "" || strings.ContainsRune(image, '/') {
+	if imageName == "" || strings.ContainsRune(imageName, '/') {
 		http.NotFound(w, r)
 		return
 	}
@@ -489,7 +489,7 @@ func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *h
 	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
 	log.Printf("Request RequestURI: %s", r.RequestURI)
 
-	imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.ipxe.GetIpxeImagePresignedUrls(bucket, image, lifetimeSecs)
+	imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.ipxe.GetIpxeImagePresignedUrls(bucket, imageName, lifetimeSecs)
 	switch {
 	case err == context.Canceled, err == context.DeadlineExceeded:
 		return
