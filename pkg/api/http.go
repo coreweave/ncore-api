@@ -10,6 +10,7 @@ import (
 
 	"github.com/coreweave/ncore-api/pkg/ipxe"
 	"github.com/coreweave/ncore-api/pkg/payloads"
+	"github.com/coreweave/ncore-api/pkg/systems"
 )
 
 type jsonErrors struct {
@@ -36,10 +37,11 @@ func contains(s []string, str string) bool {
 }
 
 // NewHTTPServer creates an HTTPServer for the API.
-func NewHTTPServer(i *ipxe.Service, p *payloads.Service) http.Handler {
+func NewHTTPServer(i *ipxe.Service, p *payloads.Service, sys *systems.Service) http.Handler {
 	s := &HTTPServer{
 		ipxe:     i,
 		payloads: p,
+		systems:  sys,
 		mux:      http.NewServeMux(),
 	}
 	// /payload/<macAddress> returns the PayloadId and PayloadDirectory as a json object
@@ -54,6 +56,8 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service) http.Handler {
 	s.mux.HandleFunc("/api/v2/ipxe/template/", s.handleGetNodeIpxeTemplate)
 	// /ipxe/s3/<imageName> returns the presigned url to download the image as text
 	s.mux.HandleFunc("/api/v2/ipxe/s3/", s.handleGetIpxeImagePresignedUrls)
+    // /systems/<macAddress> returns the systemId as a json object
+	s.mux.HandleFunc("/api/v2/systems/", s.handleSystems)
 	return s.mux
 }
 
@@ -61,6 +65,7 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service) http.Handler {
 type HTTPServer struct {
 	ipxe     *ipxe.Service
 	payloads *payloads.Service
+	systems  *systems.Service
 	mux      *http.ServeMux
 }
 
@@ -509,5 +514,13 @@ func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *h
 		w.Write([]byte("imageKernelUrlHttps: " + imageKernelUrlHttps))
 		w.Write([]byte("\n"))
 		w.Write([]byte("imageRootFsUrlHttps: " + imageRootFsUrlHttps))
+	}
+}
+
+func (s *HTTPServer) handleSystems(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "PUT" && r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.Write([]byte("405 - Method not allowed. Only GET, PUT, and DELETE allowed"))
+		return
 	}
 }

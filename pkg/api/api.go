@@ -12,6 +12,7 @@ import (
 
 	"github.com/coreweave/ncore-api/pkg/ipxe"
 	"github.com/coreweave/ncore-api/pkg/payloads"
+	"github.com/coreweave/ncore-api/pkg/systems"
 )
 
 // Server for the API.
@@ -19,7 +20,7 @@ type Server struct {
 	HTTPAddress string
 	Payloads    *payloads.Service
 	Ipxe        *ipxe.Service
-
+    Systems     *systems.Service
 	http   *httpServer
 	stopFn sync.Once
 }
@@ -37,6 +38,7 @@ func (s *Server) Run(ctx context.Context) (err error) {
 	s.http = &httpServer{
 		ipxe:     s.Ipxe,
 		payloads: s.Payloads,
+		systems:  s.Systems,
 	}
 	go func() {
 		err := s.http.Run(ctx, s.HTTPAddress)
@@ -73,13 +75,14 @@ func (s *Server) Shutdown(ctx context.Context) {
 type httpServer struct {
 	ipxe       *ipxe.Service
 	payloads   *payloads.Service
+	systems    *systems.Service
 	middleware func(http.Handler) http.Handler
 	http       *http.Server
 }
 
 // Run HTTP server.
 func (s *httpServer) Run(ctx context.Context, address string) error {
-	handler := NewHTTPServer(s.ipxe, s.payloads)
+	handler := NewHTTPServer(s.ipxe, s.payloads, s.systems)
 
 	if s.middleware != nil {
 		log.Printf("Using middleware")
