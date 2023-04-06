@@ -227,7 +227,8 @@ func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloa
 	const npd_sql = `
     UPDATE node_payloads
     SET
-        payload_id=$1
+        payload_id=$1,
+        modified_at=current_timestamp
     WHERE
         mac_address like $2
   `
@@ -299,6 +300,68 @@ func (db *DB) GetPayloadParameters(ctx context.Context, payloadId string) (inter
 		return nil, errors.New("cannot get payload_parameters from database")
 	}
 	return nil, nil
+}
+
+// GetAvailableImages returns a list of available {image_tag image_type}
+func (db *DB) GetAvailableImages(ctx context.Context) []ipxe.IpxeImageTagType {
+	const i_sql = `
+      SELECT
+        image_tag, image_type
+      FROM
+          images
+  `
+	i_rows, err := db.conn(ctx).Query(ctx, i_sql)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return nil
+	}
+	var availableImageTag string
+	var availableImageType string
+	var availableImages []ipxe.IpxeImageTagType
+	var availableImageTagType *ipxe.IpxeImageTagType
+	if err == nil {
+		defer i_rows.Close()
+		for i_rows.Next() {
+			err = i_rows.Scan(&availableImageTag, &availableImageType)
+			if err != nil {
+				log.Printf("Error - GetAvailableImages - %v", err)
+			}
+			availableImageTagType = &ipxe.IpxeImageTagType{
+				ImageTag:  availableImageTag,
+				ImageType: availableImageType,
+			}
+			availableImages = append(availableImages, *availableImageTagType)
+		}
+		return availableImages
+	}
+	return []ipxe.IpxeImageTagType{}
+}
+
+func (db *DB) UpdateNodeImage(ctx context.Context, config *ipxe.IpxeNodeDbConfig) (*ipxe.IpxeNodeDbConfig, error) {
+	log.Printf("UpdateNodeImage: %v\n", *config)
+	const indc_sql = `
+    UPDATE node_images
+    SET
+        image_tag=$1,
+        image_type=$2,
+        modified_at=current_timestamp
+    WHERE
+        mac_address like $3
+  `
+	switch commandTag, err := db.conn(ctx).Exec(ctx, indc_sql,
+		config.ImageTag,
+		config.ImageType,
+		config.MacAddress,
+	); {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return nil, err
+	case err != nil:
+		log.Printf("Error - UpdateNodeImage: %v - %v\n", err, config)
+		return nil, fmt.Errorf(`cannot update image for config: %v`, *config)
+	case strings.HasPrefix(commandTag.String(), "UPDATE 0"):
+		log.Printf("UpdateNodeImage: mac_address doesn't exist: %v\n", config)
+		return nil, fmt.Errorf(`mac_address not in database: %v`, *config)
+	}
+	return config, nil
 }
 
 // GetIpxe returns an IpxeConfig for a macAddress.
@@ -491,7 +554,7 @@ func (db *DB) CreateIpxeImage(ctx context.Context, config *ipxe.IpxeDbConfig) (*
 }
 
 // DeleteIpxeImage deletes an entry in ipxe.images matching image_tag and image_type.
-func (db *DB) DeleteIpxeImage(ctx context.Context, config *ipxe.IpxeDbDeleteConfig) (*ipxe.IpxeDbConfig, error) {
+func (db *DB) DeleteIpxeImage(ctx context.Context, config *ipxe.IpxeImageTagType) (*ipxe.IpxeDbConfig, error) {
 	var idc *ipxeDbConfig
 	sql := fmt.Sprintf(`
     DELETE FROM images
