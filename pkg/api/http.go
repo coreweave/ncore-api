@@ -49,10 +49,15 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service) http.Handler {
 		r.Put("/", s.handlePutNodePayload)
 		r.Get("/config/{payloadId}", s.handleGetPayloadParameters)
 	})
-	s.router.HandleFunc("/api/v2/ipxe/config/{macAddress}", s.handleGetNodeIpxe)
-	s.router.HandleFunc("/api/v2/ipxe/images/", s.handleIpxeImages)
-	s.router.HandleFunc("/api/v2/ipxe/template/{macAddress}", s.handleGetNodeIpxeTemplate)
-	s.router.HandleFunc("/api/v2/ipxe/s3/{imageName}", s.handleGetIpxeImagePresignedUrls)
+	s.router.Route("/api/v2/ipxe", func(r chi.Router) {
+		r.Get("/config/{macAddress}", s.handleGetNodeIpxe)
+		r.Get("/template/{macAddress}", s.handleGetNodeIpxeTemplate)
+		r.Get("/images/", s.handleGetIpxeImages)
+		r.Put("/images/", s.handlePutIpxeImages)
+		r.Put("/images/{imageName}", s.handlePutIpxeImages)
+		r.Delete("/images/", s.handleDeleteIpxeImages)
+		r.Get("/s3/{imageName}", s.handleGetIpxeImagePresignedUrls)
+	})
 	return s.router
 }
 
@@ -302,112 +307,110 @@ func (s *HTTPServer) handleGetNodeIpxe(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *HTTPServer) handleIpxeImages(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) handleGetIpxeImages(w http.ResponseWriter, r *http.Request) {
+	// TODO: List all images
+	http.NotFound(w, r)
+}
+
+func (s *HTTPServer) handlePutIpxeImages(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Request Host: %s", r.Host)
 	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
 	log.Printf("Request RequestURI: %s", r.RequestURI)
 
-	if r.Method != "GET" && r.Method != "PUT" && r.Method != "DELETE" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		w.Write([]byte("405 - Method not allowed. Only GET, PUT, and DELETE allowed"))
-		return
-	}
-	if (r.Method == "PUT" || r.Method == "DELETE") && r.Header.Get("Content-type") != "application/json" {
+	if r.Header.Get("Content-type") != "application/json" {
 		w.WriteHeader(http.StatusUnsupportedMediaType)
 		w.Write([]byte("415 - Unsupported Media Type. Only application/json content-type allowed"))
 		return
 	}
-
-	switch {
-	case r.Method == "GET":
-		imageName := chi.URLParam(r, "imageName")
-		if imageName == "" || strings.ContainsRune(imageName, '/') {
-			// TODO: List all images
-			http.NotFound(w, r)
-			return
+	defer r.Body.Close()
+	var ic *ipxe.IpxeDbConfig
+	var errors []string
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&ic); err != nil {
+		errors = append(errors, fmt.Sprintf(`cannot json decode IpxeDbConfig request: %v`, err))
+	} else {
+		if ic.ImageName == "" {
+			errors = append(errors, "ImageName is missing.")
 		}
-		// TODO: Get IpxeDbConfig for imageName
-		return
-	case r.Method == "PUT":
-		defer r.Body.Close()
-		var ic *ipxe.IpxeDbConfig
-		var errors []string
-		dec := json.NewDecoder(r.Body)
-		if err := dec.Decode(&ic); err != nil {
-			errors = append(errors, fmt.Sprintf(`cannot json decode IpxeDbConfig request: %v`, err))
-		} else {
-			if ic.ImageName == "" {
-				errors = append(errors, "ImageName is missing.")
-			}
-			if ic.ImageCmdline == "" {
-				errors = append(errors, "ImageCmdline is missing.")
-			}
-			if ic.ImageBucket == "" {
-				errors = append(errors, "ImageBucket is missing.")
-			}
-			if ic.ImageTag == "" {
-				errors = append(errors, "ImageTag is missing.")
-			}
-			if ic.ImageType == "" {
-				errors = append(errors, "ImageType is missing.")
-			}
+		if ic.ImageCmdline == "" {
+			errors = append(errors, "ImageCmdline is missing.")
 		}
-		if len(errors) > 0 {
-			errorsJson := &jsonErrors{
-				Errors: errors,
-			}
-			errorsJson.writeErrors(w)
-			return
+		if ic.ImageBucket == "" {
+			errors = append(errors, "ImageBucket is missing.")
 		}
-		config, err := s.ipxe.CreateIpxeImage(r.Context(), ic)
-		if err != nil {
-			errors = append(errors, err.Error())
-			errorsJson := &jsonErrors{
-				Errors: errors,
-			}
-			errorsJson.writeErrors(w)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Header().Set("Content-Type", "application/json")
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "\t")
-		if err := enc.Encode(config); err != nil {
-			log.Printf("cannot json encode payload response: %v", err)
-		}
-	case r.Method == "DELETE":
-		defer r.Body.Close()
-		var iddc *ipxe.IpxeDbDeleteConfig
-		dec := json.NewDecoder(r.Body)
-		if err := dec.Decode(&iddc); err != nil {
-			log.Printf("cannot json decode IpxeDbConfig request: %v", err)
-			http.Error(w, fmt.Sprintf(`%s - failed to decode %s`, http.StatusText(http.StatusInternalServerError), err), http.StatusInternalServerError)
-			return
-		}
-		var errors []string
-		if iddc.ImageTag == "" {
+		if ic.ImageTag == "" {
 			errors = append(errors, "ImageTag is missing.")
 		}
-		if iddc.ImageType == "" {
+		if ic.ImageType == "" {
 			errors = append(errors, "ImageType is missing.")
 		}
-		if len(errors) > 0 {
-			http.Error(w, fmt.Sprintf(`%s - %s`, http.StatusText(http.StatusUnprocessableEntity), errors), http.StatusUnprocessableEntity)
-			return
+	}
+	if len(errors) > 0 {
+		errorsJson := &jsonErrors{
+			Errors: errors,
 		}
-		config, err := s.ipxe.DeleteIpxeImage(r.Context(), iddc)
-		if err != nil {
-			http.Error(w, fmt.Sprintf(`%s - %s`, http.StatusText(http.StatusInternalServerError), err), http.StatusInternalServerError)
-			return
+		errorsJson.writeErrors(w)
+		return
+	}
+	config, err := s.ipxe.CreateIpxeImage(r.Context(), ic)
+	if err != nil {
+		errors = append(errors, err.Error())
+		errorsJson := &jsonErrors{
+			Errors: errors,
 		}
-		// TODO: Add to database
-		w.WriteHeader(http.StatusOK)
-		w.Header().Set("Content-Type", "application/json")
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "\t")
-		if err := enc.Encode(config); err != nil {
-			log.Printf("cannot json encode payload request: %v", err)
-		}
+		errorsJson.writeErrors(w)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(config); err != nil {
+		log.Printf("cannot json encode payload response: %v", err)
+	}
+}
+
+func (s *HTTPServer) handleDeleteIpxeImages(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Request Host: %s", r.Host)
+	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
+	log.Printf("Request RequestURI: %s", r.RequestURI)
+
+	if r.Header.Get("Content-type") != "application/json" {
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		w.Write([]byte("415 - Unsupported Media Type. Only application/json content-type allowed"))
+		return
+	}
+	defer r.Body.Close()
+	var iddc *ipxe.IpxeDbDeleteConfig
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&iddc); err != nil {
+		log.Printf("cannot json decode IpxeDbConfig request: %v", err)
+		http.Error(w, fmt.Sprintf(`%s - failed to decode %s`, http.StatusText(http.StatusInternalServerError), err), http.StatusInternalServerError)
+		return
+	}
+	var errors []string
+	if iddc.ImageTag == "" {
+		errors = append(errors, "ImageTag is missing.")
+	}
+	if iddc.ImageType == "" {
+		errors = append(errors, "ImageType is missing.")
+	}
+	if len(errors) > 0 {
+		http.Error(w, fmt.Sprintf(`%s - %s`, http.StatusText(http.StatusUnprocessableEntity), errors), http.StatusUnprocessableEntity)
+		return
+	}
+	config, err := s.ipxe.DeleteIpxeImage(r.Context(), iddc)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`%s - %s`, http.StatusText(http.StatusInternalServerError), err), http.StatusInternalServerError)
+		return
+	}
+	// TODO: Add to database
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(config); err != nil {
+		log.Printf("cannot json encode payload request: %v", err)
 	}
 }
 
