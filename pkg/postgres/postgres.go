@@ -227,7 +227,8 @@ func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloa
 	const npd_sql = `
     UPDATE node_payloads
     SET
-        payload_id=$1
+        payload_id=$1,
+        modified_at=current_timestamp
     WHERE
         mac_address like $2
   `
