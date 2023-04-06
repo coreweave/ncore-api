@@ -67,6 +67,15 @@ type IpxeImageTagType struct {
 	ImageType string
 }
 
+// GetAvailableImages returns a list of available {image_tag image_type}
+func (s *Service) GetAvailableImages(ctx context.Context) []IpxeImageTagType {
+	return s.db.GetAvailableImages(ctx)
+}
+
+func (s *Service) UpdateNodeImage(ctx context.Context, config *IpxeNodeDbConfig) (*IpxeNodeDbConfig, error) {
+	return s.db.UpdateNodeImage(ctx, config)
+}
+
 // GetIpxe returns an IpxeConfig for macAddress.
 func (s *Service) GetNodeIpxeConfig(ctx context.Context, macAddress string) (*IpxeConfig, error) {
 	var ic *IpxeConfig

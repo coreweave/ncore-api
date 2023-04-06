@@ -47,6 +47,8 @@ type Service struct {
 //
 //go:generate mockgen --build_flags=--mod=mod -package ipxe -destination mock_ipxe_db_test.go . DB
 type DB interface {
+	GetAvailableImages(ctx context.Context) []IpxeImageTagType
+	UpdateNodeImage(ctx context.Context, config *IpxeNodeDbConfig) (*IpxeNodeDbConfig, error)
 	// GetIpxe returns an IpxeConfig for a macAddress.
 	GetIpxeDbConfig(ctx context.Context, macAddress string) (*IpxeDbConfig, error)
 	GetSubnetDefaultIpxeDbConfig(ctx context.Context, ipAddress string) (*IpxeDbConfig, error)

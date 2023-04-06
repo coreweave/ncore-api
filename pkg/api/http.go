@@ -36,6 +36,15 @@ func contains(s []string, str string) bool {
 	return false
 }
 
+func containsImageTagType(images []ipxe.IpxeImageTagType, iitt ipxe.IpxeImageTagType) bool {
+	for _, a := range images {
+		if a == iitt {
+			return true
+		}
+	}
+	return false
+}
+
 // NewHTTPServer creates an HTTPServer for the API.
 func NewHTTPServer(i *ipxe.Service, p *payloads.Service) http.Handler {
 	s := &HTTPServer{
@@ -51,6 +60,7 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service) http.Handler {
 	})
 	s.router.Route("/api/v2/ipxe", func(r chi.Router) {
 		r.Get("/config/{macAddress}", s.handleGetNodeIpxe)
+		r.Put("/", s.handlePutNodeIpxe)
 		r.Get("/template/{macAddress}", s.handleGetNodeIpxeTemplate)
 		r.Get("/images/", s.handleGetIpxeImages)
 		r.Put("/images/", s.handlePutIpxeImages)
@@ -304,6 +314,91 @@ func (s *HTTPServer) handleGetNodeIpxe(w http.ResponseWriter, r *http.Request) {
 		if err := enc.Encode(parameters); err != nil {
 			log.Printf("cannot json encode payload request: %v", err)
 		}
+	}
+}
+
+func (s *HTTPServer) handlePutNodeIpxe(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Content-type") != "application/json" {
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		w.Write([]byte("415 - Unsupported Media Type. Only application/json content-type allowed"))
+		return
+	}
+
+	defer r.Body.Close()
+	var indc *ipxe.IpxeNodeDbConfig
+	var iitt *ipxe.IpxeImageTagType
+	var errors []string
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&indc); err != nil {
+		errors = append(errors, fmt.Sprintf(`cannot json decode IpxeNodeDbConfig request: %v`, err))
+	} else {
+		if indc.ImageTag == "" {
+			errors = append(errors, "ImageTag is missing.")
+		}
+		if indc.ImageType == "" {
+			errors = append(errors, "ImageType is missing.")
+		}
+		if indc.MacAddress == "" {
+			errors = append(errors, "MacAddress is missing.")
+		}
+	}
+	if len(errors) > 0 {
+		errorsJson := &jsonErrors{
+			Errors: errors,
+		}
+		errorsJson.writeErrors(w)
+		return
+	}
+
+	indc.MacAddress = strings.Replace(strings.ToLower(indc.MacAddress), ":", "", -1)
+
+	// if query includes a hostname instead of full macAddress
+	if len(indc.MacAddress) == 7 {
+		indc.MacAddress = "%" + indc.MacAddress[1:]
+	}
+
+	if len(indc.MacAddress) != 12 && len(indc.MacAddress) != 7 {
+		var errors []string
+		errors = append(errors, "Invalid mac_address")
+		errorsJson := &jsonErrors{
+			Errors: errors,
+		}
+		errorsJson.writeErrors(w)
+		return
+	}
+
+	images := s.ipxe.GetAvailableImages(r.Context())
+
+	iitt = &ipxe.IpxeImageTagType{
+		ImageTag:  indc.ImageTag,
+		ImageType: indc.ImageType,
+	}
+
+	if !containsImageTagType(images, *iitt) {
+		errors = append(errors, "Image doesn't exist")
+		errors = append(errors, fmt.Sprintf(`Available Images: %v`, images))
+		errorsJson := &jsonErrors{
+			Errors: errors,
+		}
+		errorsJson.writeErrors(w)
+		return
+	}
+
+	config, err := s.ipxe.UpdateNodeImage(r.Context(), indc)
+	if err != nil {
+		errors = append(errors, err.Error())
+		errorsJson := &jsonErrors{
+			Errors: errors,
+		}
+		errorsJson.writeErrors(w)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(config); err != nil {
+		log.Printf("cannot json encode image response: %v", err)
 	}
 }
 
