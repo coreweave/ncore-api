@@ -381,7 +381,7 @@ func (s *HTTPServer) handleDeleteIpxeImages(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	defer r.Body.Close()
-	var iddc *ipxe.IpxeDbDeleteConfig
+	var iddc *ipxe.IpxeImageTagType
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&iddc); err != nil {
 		log.Printf("cannot json decode IpxeDbConfig request: %v", err)

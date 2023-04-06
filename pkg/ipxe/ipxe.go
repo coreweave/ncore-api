@@ -62,7 +62,7 @@ func (idc *IpxeDbConfig) dto() *IpxeDbConfig {
 	}
 }
 
-type IpxeDbDeleteConfig struct {
+type IpxeImageTagType struct {
 	ImageTag  string
 	ImageType string
 }
@@ -170,7 +170,7 @@ func (s *Service) CreateIpxeImage(ctx context.Context, config *IpxeDbConfig) (*I
 }
 
 // DeleteIpxeImage deletes an entry in ipxe.images matching image_tag and image_type.
-func (s *Service) DeleteIpxeImage(ctx context.Context, config *IpxeDbDeleteConfig) (*IpxeDbConfig, error) {
+func (s *Service) DeleteIpxeImage(ctx context.Context, config *IpxeImageTagType) (*IpxeDbConfig, error) {
 	idc, err := s.db.DeleteIpxeImage(ctx, config)
 	if err != nil {
 		log.Printf("DeleteIpxeImage: failed to delete IpxeDbDeleteConfig: %v", err)

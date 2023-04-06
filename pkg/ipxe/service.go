@@ -52,7 +52,7 @@ type DB interface {
 	GetSubnetDefaultIpxeDbConfig(ctx context.Context, ipAddress string) (*IpxeDbConfig, error)
 	CreateNodeIpxeConfig(ctx context.Context, config *IpxeNodeDbConfig) error
 	CreateIpxeImage(ctx context.Context, config *IpxeDbConfig) (*IpxeConfig, error)
-	DeleteIpxeImage(ctx context.Context, config *IpxeDbDeleteConfig) (*IpxeDbConfig, error)
+	DeleteIpxeImage(ctx context.Context, config *IpxeImageTagType) (*IpxeDbConfig, error)
 }
 
 // ValidationError is returned when there is an invalid parameter received.

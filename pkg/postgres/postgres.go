@@ -491,7 +491,7 @@ func (db *DB) CreateIpxeImage(ctx context.Context, config *ipxe.IpxeDbConfig) (*
 }
 
 // DeleteIpxeImage deletes an entry in ipxe.images matching image_tag and image_type.
-func (db *DB) DeleteIpxeImage(ctx context.Context, config *ipxe.IpxeDbDeleteConfig) (*ipxe.IpxeDbConfig, error) {
+func (db *DB) DeleteIpxeImage(ctx context.Context, config *ipxe.IpxeImageTagType) (*ipxe.IpxeDbConfig, error) {
 	var idc *ipxeDbConfig
 	sql := fmt.Sprintf(`
     DELETE FROM images
