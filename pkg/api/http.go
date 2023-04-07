@@ -516,7 +516,10 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
+	macAddress = strings.ToLower(macAddress)
+	macAddress = strings.Replace(macAddress, ":", "", -1)
+	macAddress = strings.Replace(macAddress, "%3a", "", -1)
+	log.Print(macAddress)
 
 	if len(macAddress) != 12 {
 		var errors []string
