@@ -56,7 +56,7 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service, sys *systems.Service) h
 	s.mux.HandleFunc("/api/v2/ipxe/template/", s.handleGetNodeIpxeTemplate)
 	// /ipxe/s3/<imageName> returns the presigned url to download the image as text
 	s.mux.HandleFunc("/api/v2/ipxe/s3/", s.handleGetIpxeImagePresignedUrls)
-    // /systems/<macAddress> returns the systemId as a json object
+	// /systems/<macAddress> returns the systemId as a json object
 	s.mux.HandleFunc("/api/v2/systems/", s.handleSystems)
 	return s.mux
 }
@@ -520,7 +520,91 @@ func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *h
 func (s *HTTPServer) handleSystems(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "PUT" && r.Method != "POST" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		w.Write([]byte("405 - Method not allowed. Only GET, PUT, and DELETE allowed"))
+		w.Write([]byte("405 - Method not allowed. Only PUT, and POST allowed"))
 		return
+	}
+	macAddress := r.URL.Path[len("/api/v2/systems/"):]
+	if macAddress == "" || strings.ContainsRune(macAddress, '/') {
+		http.NotFound(w, r)
+		return
+	}
+
+	macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
+
+	if len(macAddress) != 12 {
+		var errors []string
+		errors = append(errors, "Invalid mac_address")
+		errorsJson := &jsonErrors{
+			Errors: errors,
+		}
+		errorsJson.writeErrors(w)
+		return
+	}
+	switch {
+	case r.Method == "PUT":
+		defer r.Body.Close()
+		var n *systems.SystemStatusDb
+		var errors []string
+		//fmt.Printf(`%+v`, r.Body)
+
+		dec := json.NewDecoder(r.Body)
+		//fmt.Printf(`%+v`, dec)
+		if err := dec.Decode(&n); err != nil {
+			errors = append(errors, fmt.Sprintf(`cannot json decode payload request: %v`, err))
+		} else {
+			if n.MacAddress == "" {
+				errors = append(errors, "MacAddress is missing.")
+			}
+			if n.NodeId == "" {
+				errors = append(errors, "NodeId is missing.")
+			}
+			if n.IpAddress == "" {
+				errors = append(errors, "IpAddress is missing.")
+			}
+		}
+		if len(errors) > 0 {
+			errorsJson := &jsonErrors{
+				Errors: errors,
+			}
+			errorsJson.writeErrors(w)
+			return
+		}
+		fmt.Printf(`%+v`, &dec)
+		n.MacAddress = strings.Replace(strings.ToLower(n.MacAddress), ":", "", -1)
+
+		// if query includes a hostname instead of full macAddress
+		if len(n.MacAddress) == 7 {
+			n.MacAddress = "%" + n.MacAddress[1:]
+		}
+
+		if len(n.MacAddress) != 12 && len(n.MacAddress) != 7 {
+			var errors []string
+			errors = append(errors, "Invalid mac_address")
+			errorsJson := &jsonErrors{
+				Errors: errors,
+			}
+			errorsJson.writeErrors(w)
+			return
+		}
+
+		systems, err := s.systems.UpdateSystemStatus(r.Context(), n)
+
+		if err != nil {
+			errors = append(errors, err.Error())
+			errorsJson := &jsonErrors{
+				Errors: errors,
+			}
+			errorsJson.writeErrors(w)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "\t")
+		if err := enc.Encode(systems); err != nil {
+			log.Printf("cannot json encode payload response: %v", err)
+		}
+	case r.Method == "POST":
+
 	}
 }
