@@ -14,9 +14,9 @@ import (
 	"github.com/coreweave/ncore-api/pkg/database"
 	"github.com/coreweave/ncore-api/pkg/ipxe"
 	"github.com/coreweave/ncore-api/pkg/payloads"
-	"github.com/coreweave/ncore-api/pkg/systems"
 	"github.com/coreweave/ncore-api/pkg/postgres"
 	"github.com/coreweave/ncore-api/pkg/s3"
+	"github.com/coreweave/ncore-api/pkg/systems"
 )
 
 type pgConfig struct {
