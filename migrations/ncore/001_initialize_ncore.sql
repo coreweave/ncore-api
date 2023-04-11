@@ -1,10 +1,10 @@
-CREATE ROLE readaccess;
+CREATE ROLE readaccess LOGIN;
 
 GRANT CONNECT ON DATABASE ncore TO readaccess;
 GRANT USAGE ON SCHEMA public TO readaccess;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO readaccess;
 
-CREATE USER read_only WITH PASSWORD 'md5bccec13d9ff3be9eab535543c1144ff6';
+CREATE USER read_only WITH PASSWORD 'md56600a015abc595eb4d1f764df25cc7b4';
 
 GRANT readaccess TO read_only;
 
