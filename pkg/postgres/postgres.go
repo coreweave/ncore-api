@@ -10,6 +10,7 @@ import (
 	"github.com/coreweave/ncore-api/pkg/database"
 	"github.com/coreweave/ncore-api/pkg/ipxe"
 	"github.com/coreweave/ncore-api/pkg/payloads"
+	"github.com/coreweave/ncore-api/pkg/systems"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -41,7 +42,8 @@ func (db *DB) conn(ctx context.Context) database.PGXQuerier {
 }
 
 var _ ipxe.DB = (*DB)(nil)     // Check if methods expected by ipxe.DB are implemented correctly.
-var _ payloads.DB = (*DB)(nil) // Check if methods expected by payloads.DB are implemented correctly.
+var _ payloads.DB = (*DB)(nil) // Checkif methods expected by payloads.DB are implemented correctly.
+var _ systems.DB = (*DB)(nil)  // Check if methods expected by systems.DB are implemented correctly.
 
 type nodePayload struct {
 	PayloadId        string
@@ -91,6 +93,12 @@ func (ic *ipxeDbConfig) dto() *ipxe.IpxeDbConfig {
 		ImageType:    ic.ImageType,
 		ImageCmdline: ic.ImageCmdline,
 	}
+}
+
+type nodeStats struct {
+	MacAddress string
+	NodeId     string
+	IpAddress  string
 }
 
 // GetPayload returns a Payload.
@@ -563,4 +571,38 @@ func (db *DB) pgErrorCode(err error) error {
 		return nil
 	}
 	return errors.New(pgErr.Code)
+}
+
+func (db *DB) UpdateSystemStatus(ctx context.Context, nodeStats *systems.SystemStatusDb) (*systems.SystemStatusDb, error) {
+	const npd_sql = `
+    INSERT INTO nodes (
+		mac_address, 
+		system_id, 
+		ip_address
+	) 
+	VALUES (
+		$1,
+		$2,
+		$3
+	)
+	ON CONFLICT (mac_address) 
+	DO UPDATE set mac_address = $1, system_id = $2, ip_address = $3, last_seen=now();
+	`
+	switch _, err := db.conn(ctx).Exec(ctx, npd_sql,
+		nodeStats.MacAddress,
+		nodeStats.NodeId,
+		nodeStats.IpAddress,
+	); {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return nil, err
+	case err != nil:
+		if sqlErr := db.pgErrorCode(err); sqlErr != nil {
+			if sqlErr.Error() == "23505" {
+				return nil, fmt.Errorf("Entry already exists for macAddress: %s", nodeStats.MacAddress)
+			}
+		}
+		return nil, err
+	}
+
+	return nodeStats, nil
 }
