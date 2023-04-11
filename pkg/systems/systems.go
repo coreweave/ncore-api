@@ -5,16 +5,17 @@ import (
 	//"time"
 )
 
-type SystemId struct {
-	MacAddress  string
-	Id			string
+type SystemStatusDb struct {
+	MacAddress string
+	NodeId     string
+	IpAddress  string
 }
 
-func (s *Service) UpdateSystemStatus(ctx context.Context, macAddress string) (*SystemId, error) {
-	if macAddress == "" {
+func (s *Service) UpdateSystemStatus(ctx context.Context, stat *SystemStatusDb) (*SystemStatusDb, error) {
+	if stat.MacAddress == "" {
 		return nil, ValidationError{"missing system macAddress"}
 	}
-	return s.db.UpdateSystemStatus(ctx, macAddress)
+	return s.db.UpdateSystemStatus(ctx, stat)
 }
 
 // ValidationError is returned when there is an invalid parameter received.
