@@ -281,6 +281,7 @@ func (s *HTTPServer) handleGetPayloadParameters(w http.ResponseWriter, r *http.R
 }
 
 func (s *HTTPServer) handleGetNodeIpxe(w http.ResponseWriter, r *http.Request) {
+	var errors []string
 	macAddress := chi.URLParam(r, "macAddress")
 	if macAddress == "" || strings.ContainsRune(macAddress, '/') {
 		http.NotFound(w, r)
@@ -288,6 +289,20 @@ func (s *HTTPServer) handleGetNodeIpxe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
+
+	// if query includes a hostname instead of full macAddress
+	if len(macAddress) == 7 {
+		macAddress = "%" + macAddress[1:]
+	}
+
+	if len(macAddress) != 12 && len(macAddress) != 7 {
+		errors = append(errors, "Invalid mac_address")
+		errorsJson := &jsonErrors{
+			Errors: errors,
+		}
+		errorsJson.writeErrors(w)
+		return
+	}
 
 	log.Printf("Request Host: %s", r.Host)
 	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
@@ -520,7 +535,6 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 	macAddress = strings.ToLower(macAddress)
 	macAddress = strings.Replace(macAddress, ":", "", -1)
 	macAddress = strings.Replace(macAddress, "%3a", "", -1)
-	log.Print(macAddress)
 
 	if len(macAddress) != 12 {
 		var errors []string

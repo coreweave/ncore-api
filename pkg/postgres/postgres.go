@@ -376,7 +376,7 @@ func (db *DB) GetIpxeDbConfig(ctx context.Context, macAddress string) (*ipxe.Ipx
         mac_address
     FROM node_images
     WHERE
-        mac_address = $1
+        mac_address like $1
   `)
 	idnc_rows, err := db.conn(ctx).Query(ctx, idnc_sql,
 		macAddress,
@@ -410,7 +410,7 @@ func (db *DB) GetIpxeDbConfig(ctx context.Context, macAddress string) (*ipxe.Ipx
     ) AND (
       node_images.image_type = images.image_type
     )
-      WHERE node_images.mac_address = $1;
+      WHERE node_images.mac_address like $1;
 	`)
 	ic_rows, err := db.conn(ctx).Query(ctx, ic_sql,
 		macAddress,

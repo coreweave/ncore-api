@@ -70,7 +70,7 @@ type IpxeImageTagType struct {
 }
 
 func (s *Service) SetHostname(ctx context.Context, ic *IpxeConfig, macAddress string) *IpxeConfig {
-	ic.Hostname = string('g') + macAddress[6:12]
+	ic.Hostname = string('g') + macAddress[len(macAddress)-6:]
 	return ic
 }
 
