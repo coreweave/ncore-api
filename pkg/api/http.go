@@ -301,6 +301,7 @@ func (s *HTTPServer) handleGetNodeIpxe(w http.ResponseWriter, r *http.Request) {
 	case err != nil || parameters == nil:
 		log.Printf("Getting API Ipxe default image for macAddress: %s", macAddress)
 		parameters := s.ipxe.GetIpxeApiDefault()
+		s.ipxe.SetHostname(r.Context(), parameters, macAddress)
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "\t")
@@ -566,6 +567,7 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 		if err := s.ipxe.CreateNodeIpxeConfig(r.Context(), defaultNodeIpxeDbConfig); err != nil {
 			log.Print(err.Error())
 		}
+		s.ipxe.SetHostname(r.Context(), defaultNodeIpxeConfig, macAddress)
 		ipxeTemplate.Execute(w, defaultNodeIpxeConfig)
 	default:
 		ipxeTemplate.Execute(w, assignedIpxeConfig)

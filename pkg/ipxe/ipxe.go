@@ -20,6 +20,7 @@ type IpxeConfig struct {
 	ImageRootFsUrlHttp  string
 	ImageRootFsUrlHttps string
 	ImageCmdline        string
+	Hostname            string
 }
 
 type IpxeNodeDbConfig struct {
@@ -49,6 +50,7 @@ func (ic *IpxeConfig) dto() *IpxeConfig {
 		ImageRootFsUrlHttp:  strings.Replace(ic.ImageRootFsUrlHttps, "https", "http", 1),
 		ImageRootFsUrlHttps: ic.ImageRootFsUrlHttps,
 		ImageCmdline:        ic.ImageCmdline,
+		Hostname:            ic.Hostname,
 	}
 }
 
@@ -65,6 +67,11 @@ func (idc *IpxeDbConfig) dto() *IpxeDbConfig {
 type IpxeImageTagType struct {
 	ImageTag  string
 	ImageType string
+}
+
+func (s *Service) SetHostname(ctx context.Context, ic *IpxeConfig, macAddress string) *IpxeConfig {
+	ic.Hostname = string('g') + macAddress[6:12]
+	return ic
 }
 
 // GetAvailableImages returns a list of available {image_tag image_type}
@@ -107,6 +114,7 @@ func (s *Service) GetNodeIpxeConfig(ctx context.Context, macAddress string) (*Ip
 		ImageRootFsUrlHttps: imageRootFsUrlHttps,
 		ImageCmdline:        idc.ImageCmdline,
 	}
+	s.SetHostname(ctx, ic, macAddress)
 	return ic.dto(), nil
 }
 
