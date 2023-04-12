@@ -9,6 +9,7 @@ import (
 
 	"github.com/coreweave/ncore-api/pkg/database"
 	"github.com/coreweave/ncore-api/pkg/ipxe"
+	"github.com/coreweave/ncore-api/pkg/nodes"
 	"github.com/coreweave/ncore-api/pkg/payloads"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
@@ -42,6 +43,7 @@ func (db *DB) conn(ctx context.Context) database.PGXQuerier {
 
 var _ ipxe.DB = (*DB)(nil)     // Check if methods expected by ipxe.DB are implemented correctly.
 var _ payloads.DB = (*DB)(nil) // Check if methods expected by payloads.DB are implemented correctly.
+var _ nodes.DB = (*DB)(nil)    // Check if methods expected by nodes.DB are implemented correctly.
 
 type nodePayload struct {
 	PayloadId        string
@@ -626,4 +628,38 @@ func (db *DB) pgErrorCode(err error) error {
 		return nil
 	}
 	return errors.New(pgErr.Code)
+}
+
+func (db *DB) UpdateNodeStats(ctx context.Context, n *nodes.Node) (*nodes.Node, error) {
+	const npd_sql = `
+    INSERT INTO nodes (
+		mac_address, 
+		system_id, 
+		ip_address
+	) 
+	VALUES (
+		$1,
+		$2,
+		$3
+	)
+	ON CONFLICT (mac_address) 
+	DO UPDATE set mac_address = $1, system_id = $2, ip_address = $3, last_seen=now();
+	`
+	switch _, err := db.conn(ctx).Exec(ctx, npd_sql,
+		n.MacAddress,
+		n.NodeId,
+		n.IpAddress,
+	); {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return nil, err
+	case err != nil:
+		if sqlErr := db.pgErrorCode(err); sqlErr != nil {
+			if sqlErr.Error() == "23505" {
+				return nil, fmt.Errorf("Entry already exists for macAddress: %s", n.MacAddress)
+			}
+		}
+		return nil, err
+	}
+
+	return n, nil
 }
