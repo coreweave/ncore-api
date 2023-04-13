@@ -6,7 +6,7 @@ import (
 
 type Node struct {
 	MacAddress string
-	NodeId     string
+	Hostname   string
 	IpAddress  string
 }
 
