@@ -634,7 +634,7 @@ func (db *DB) UpdateNodeStats(ctx context.Context, n *nodes.Node) (*nodes.Node, 
 	const npd_sql = `
     INSERT INTO nodes (
 		mac_address, 
-		system_id, 
+		hostname, 
 		ip_address
 	) 
 	VALUES (
@@ -643,11 +643,11 @@ func (db *DB) UpdateNodeStats(ctx context.Context, n *nodes.Node) (*nodes.Node, 
 		$3
 	)
 	ON CONFLICT (mac_address) 
-	DO UPDATE set mac_address = $1, system_id = $2, ip_address = $3, last_seen=now();
+	DO UPDATE set mac_address = $1, hostname = $2, ip_address = $3, last_seen=now();
 	`
 	switch _, err := db.conn(ctx).Exec(ctx, npd_sql,
 		n.MacAddress,
-		n.NodeId,
+		n.Hostname,
 		n.IpAddress,
 	); {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
