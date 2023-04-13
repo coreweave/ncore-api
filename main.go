@@ -97,7 +97,7 @@ func main() {
 	}
 	defer pgPoolIpxe.Close()
 
-	nodesPGConfig := newPGConfigFromEnv("NCORE")
+	nodesPGConfig := newPGConfigFromEnv("NODES")
 	pgPoolNodes, err := database.NewPGXPool(context.Background(), nodesPGConfig.connString(), &database.PGXStdLogger{}, pgxLogLevel)
 	if err != nil {
 		log.Fatal(err)
