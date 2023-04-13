@@ -80,7 +80,7 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service, n *nodes.Service) http.
 		r.Get("/s3/{imageName}", s.handleGetIpxeImagePresignedUrls)
 	})
 	s.router.Route("/api/v2/nodes", func(r chi.Router) {
-		r.Put("/{macAddress}", s.handlePutNodes)
+		r.Put("/", s.handlePutNodes)
 	})
 	return s.router
 }
@@ -675,28 +675,6 @@ func (s *HTTPServer) handlePutNodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var errors []string
-	macAddress := chi.URLParam(r, "macAddress")
-	if macAddress == "" || strings.ContainsRune(macAddress, '/') {
-		http.NotFound(w, r)
-		return
-	}
-
-	macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
-
-	// if query includes a hostname instead of full macAddress
-	if len(macAddress) == 7 {
-		macAddress = "%" + macAddress[1:]
-	}
-
-	if len(macAddress) != 12 && len(macAddress) != 7 {
-		errors = append(errors, "Invalid mac_address")
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
-		return
-	}
-
 	defer r.Body.Close()
 	var node *nodes.Node
 
@@ -705,13 +683,13 @@ func (s *HTTPServer) handlePutNodes(w http.ResponseWriter, r *http.Request) {
 		errors = append(errors, fmt.Sprintf(`cannot json decode Node request: %v`, err))
 	} else {
 		if node.MacAddress == "" {
-			errors = append(errors, "Mac Address is missing.")
+			errors = append(errors, "MacAddress is missing.")
 		}
-		if node.NodeId == "" {
-			errors = append(errors, "NodeId is missing.")
+		if node.Hostname == "" {
+			errors = append(errors, "Hostname is missing.")
 		}
 		if node.IpAddress == "" {
-			errors = append(errors, "Ip Address is missing.")
+			errors = append(errors, "IpAddress is missing.")
 		}
 	}
 	if len(errors) > 0 {
@@ -731,7 +709,7 @@ func (s *HTTPServer) handlePutNodes(w http.ResponseWriter, r *http.Request) {
 
 	if len(node.MacAddress) != 12 && len(node.MacAddress) != 7 {
 		var errors []string
-		errors = append(errors, "Invalid mac_address")
+		errors = append(errors, "Invalid MacAddress")
 		errorsJson := &jsonErrors{
 			Errors: errors,
 		}
