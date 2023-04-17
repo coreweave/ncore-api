@@ -80,7 +80,7 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service, n *nodes.Service) http.
 		r.Get("/s3/{imageName}", s.handleGetIpxeImagePresignedUrls)
 	})
 	s.router.Route("/api/v2/nodes", func(r chi.Router) {
-		r.Put("/", s.handlePutNodes)
+		r.Put("/heartbeat", s.handlePutNodes)
 	})
 	return s.router
 }
