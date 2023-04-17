@@ -653,11 +653,6 @@ func (db *DB) UpdateNodeStats(ctx context.Context, n *nodes.Node) (*nodes.Node, 
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return nil, err
 	case err != nil:
-		if sqlErr := db.pgErrorCode(err); sqlErr != nil {
-			if sqlErr.Error() == "23505" {
-				return nil, fmt.Errorf("Entry already exists for macAddress: %s", n.MacAddress)
-			}
-		}
 		return nil, err
 	}
 
