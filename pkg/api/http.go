@@ -80,7 +80,7 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service, n *nodes.Service) http.
 		r.Get("/s3/{imageName}", s.handleGetIpxeImagePresignedUrls)
 	})
 	s.router.Route("/api/v2/nodes", func(r chi.Router) {
-		r.Put("/heartbeat", s.handlePutNodes)
+		r.Put("/{macAddress}/heartbeat", s.handlePutNodesHeartbeat)
 	})
 	return s.router
 }
@@ -668,13 +668,31 @@ func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *h
 	}
 }
 
-func (s *HTTPServer) handlePutNodes(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPServer) handlePutNodesHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Content-type") != "application/json" {
 		w.WriteHeader(http.StatusUnsupportedMediaType)
 		w.Write([]byte("415 - Unsupported Media Type. Only application/json content-type allowed"))
 		return
 	}
 	var errors []string
+	macAddress := chi.URLParam(r, "macAddress")
+
+	if macAddress == "" || strings.ContainsRune(macAddress, '/') {
+		http.NotFound(w, r)
+		return
+	}
+
+	macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
+
+	if len(macAddress) != 12 {
+		errors = append(errors, "Invalid mac_address")
+		errorsJson := &jsonErrors{
+			Errors: errors,
+		}
+		errorsJson.writeErrors(w)
+		return
+	}
+
 	defer r.Body.Close()
 	var node *nodes.Node
 
@@ -702,12 +720,7 @@ func (s *HTTPServer) handlePutNodes(w http.ResponseWriter, r *http.Request) {
 
 	node.MacAddress = strings.Replace(strings.ToLower(node.MacAddress), ":", "", -1)
 
-	// if query includes a hostname instead of full macAddress
-	if len(node.MacAddress) == 7 {
-		node.MacAddress = "%" + node.MacAddress[1:]
-	}
-
-	if len(node.MacAddress) != 12 && len(node.MacAddress) != 7 {
+	if len(node.MacAddress) != 12 {
 		var errors []string
 		errors = append(errors, "Invalid MacAddress")
 		errorsJson := &jsonErrors{
