@@ -2,7 +2,6 @@ package payloads
 
 import (
 	"context"
-	"time"
 )
 
 // NodePayload with directory for mac_address.
@@ -22,28 +21,6 @@ type NodePayloadDb struct {
 type Payload struct {
 	PayloadId        string
 	PayloadDirectory string
-}
-
-// PayloadSchema for payload_id.
-type PayloadSchema struct {
-	Id              string
-	PayloadSchemaId string
-	ParameterName   string
-	CreatedAt       time.Time
-	ModifiedAt      time.Time
-}
-
-type PayloadParameter struct {
-	Parameter string
-	Value     string
-}
-
-type PayloadParameters struct {
-	Id         string
-	PayloadId  string
-	Parameters map[string]interface{}
-	CreatedAt  time.Time
-	ModifiedAt time.Time
 }
 
 // GetNodePayload returns a NodePayload for mac_address.
