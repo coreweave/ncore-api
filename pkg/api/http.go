@@ -13,16 +13,25 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type jsonErrors struct {
-	Errors []string
+type httpErrors struct {
+	StatusCode int      `json:"-"`
+	Errors     []string `json:"errors"`
 }
 
-func (e *jsonErrors) writeErrors(w http.ResponseWriter) {
+func (e *httpErrors) writeErrors(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(e.StatusCode)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "\t")
 	if err := enc.Encode(&e); err != nil {
-		http.Error(w, fmt.Sprintf(`%s - %s`, http.StatusText(http.StatusInternalServerError), &e), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(`%s - %s`, http.StatusText(http.StatusInternalServerError), e.Errors), http.StatusInternalServerError)
+	}
+}
+
+func formatHttpErrors(statusCode int, messages []string) *httpErrors {
+	return &httpErrors{
+		StatusCode: statusCode,
+		Errors:     messages,
 	}
 }
 
@@ -85,11 +94,6 @@ func (s *HTTPServer) handleGetRoot(w http.ResponseWriter, r *http.Request) {
 func (s *HTTPServer) handleGetNodePayload(w http.ResponseWriter, r *http.Request) {
 	var errors []string
 	macAddress := chi.URLParam(r, "macAddress")
-	if macAddress == "" || strings.ContainsRune(macAddress, '/') {
-		http.NotFound(w, r)
-		return
-	}
-
 	macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
 
 	// if query includes a hostname instead of full macAddress
@@ -99,10 +103,8 @@ func (s *HTTPServer) handleGetNodePayload(w http.ResponseWriter, r *http.Request
 
 	if len(macAddress) != 12 && len(macAddress) != 7 {
 		errors = append(errors, "Invalid mac_address")
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
@@ -114,11 +116,14 @@ func (s *HTTPServer) handleGetNodePayload(w http.ResponseWriter, r *http.Request
 		// TODO: Add warning log
 		return
 	case err != nil:
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		log.Println(err)
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
 		return
 	case assignedNodePayload == nil && len(macAddress) == 7:
-		http.Error(w, fmt.Sprintf("payload not found for hostname: %s", macAddress), http.StatusNotFound)
+		errors = append(errors, fmt.Sprintf("payload not found for hostname: %s", macAddress))
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	case assignedNodePayload == nil:
 		// PayloadId, MacAddress missing from payloads.node_payloads
@@ -131,8 +136,10 @@ func (s *HTTPServer) handleGetNodePayload(w http.ResponseWriter, r *http.Request
 
 		switch {
 		case err != nil:
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			log.Println(err)
+			errors = append(errors, err.Error())
+			var e = formatHttpErrors(http.StatusInternalServerError, errors)
+			e.writeErrors(w)
+			return
 		case subnetPayload != nil:
 			log.Printf("Using subnetPayload for macAddress: %s", macAddress)
 			defaultNodePayload = &payloads.NodePayload{
@@ -154,51 +161,59 @@ func (s *HTTPServer) handleGetNodePayload(w http.ResponseWriter, r *http.Request
 			MacAddress: macAddress,
 		}
 		log.Printf("Adding defaulted node_payloads entry: %v", defaultNodePayloadDb)
+
 		if err := s.payloads.AddNodePayload(r.Context(), defaultNodePayloadDb); err != nil {
-			log.Print(err.Error())
+			log.Printf("AddNodePayload: %s", err.Error())
 		}
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "\t")
 		if err := enc.Encode(defaultNodePayload); err != nil {
-			log.Printf("cannot json encode payload request: %v", err)
+			errors = append(errors, err.Error())
+			var e = formatHttpErrors(http.StatusInternalServerError, errors)
+			e.writeErrors(w)
+			return
 		}
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "\t")
 		if err := enc.Encode(assignedNodePayload); err != nil {
-			log.Printf("cannot json encode payload request: %v", err)
+			errors = append(errors, err.Error())
+			var e = formatHttpErrors(http.StatusInternalServerError, errors)
+			e.writeErrors(w)
+			return
 		}
 	}
 }
 
 func (s *HTTPServer) handlePutNodePayload(w http.ResponseWriter, r *http.Request) {
+	var errors []string
 	if r.Header.Get("Content-type") != "application/json" {
-		w.WriteHeader(http.StatusUnsupportedMediaType)
-		w.Write([]byte("415 - Unsupported Media Type. Only application/json content-type allowed"))
+		var e = formatHttpErrors(http.StatusUnsupportedMediaType, errors)
+		e.writeErrors(w)
 		return
 	}
 
 	defer r.Body.Close()
 	var npd *payloads.NodePayloadDb
-	var errors []string
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&npd); err != nil {
-		errors = append(errors, fmt.Sprintf(`cannot json decode NodePayload request: %v`, err))
-	} else {
-		if npd.PayloadId == "" {
-			errors = append(errors, "PayloadId is missing.")
-		}
-		if npd.MacAddress == "" {
-			errors = append(errors, "MacAddress is missing.")
-		}
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
+		return
+	}
+
+	if npd.PayloadId == "" {
+		errors = append(errors, "PayloadId is missing.")
+	}
+	if npd.MacAddress == "" {
+		errors = append(errors, "MacAddress is missing.")
 	}
 	if len(errors) > 0 {
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
@@ -210,12 +225,9 @@ func (s *HTTPServer) handlePutNodePayload(w http.ResponseWriter, r *http.Request
 	}
 
 	if len(npd.MacAddress) != 12 && len(npd.MacAddress) != 7 {
-		var errors []string
 		errors = append(errors, "Invalid mac_address")
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
@@ -224,21 +236,16 @@ func (s *HTTPServer) handlePutNodePayload(w http.ResponseWriter, r *http.Request
 	if !contains(payloads, npd.PayloadId) {
 		errors = append(errors, "PayloadId doesn't exist")
 		errors = append(errors, fmt.Sprintf(`Available Payloads: %v`, payloads))
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
-	log.Printf("payloads - %v", payloads)
 	config, err := s.payloads.UpdateNodePayload(r.Context(), npd)
 	if err != nil {
 		errors = append(errors, err.Error())
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -246,11 +253,15 @@ func (s *HTTPServer) handlePutNodePayload(w http.ResponseWriter, r *http.Request
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "\t")
 	if err := enc.Encode(config); err != nil {
-		log.Printf("cannot json encode payload response: %v", err)
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
+		return
 	}
 }
 
 func (s *HTTPServer) handleGetPayloadParameters(w http.ResponseWriter, r *http.Request) {
+	var errors []string
 	payloadId := chi.URLParam(r, "payloadId")
 	if payloadId == "" || strings.ContainsRune(payloadId, '/') {
 		http.NotFound(w, r)
@@ -266,16 +277,23 @@ func (s *HTTPServer) handleGetPayloadParameters(w http.ResponseWriter, r *http.R
 		// TODO: Add warning log
 		return
 	case err != nil:
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		log.Println(err)
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
+		return
 	case parameters == nil:
-		http.Error(w, "parameters not found", http.StatusNotFound)
+		var e = formatHttpErrors(http.StatusNotFound, errors)
+		e.writeErrors(w)
+		return
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "\t")
 		if err := enc.Encode(parameters); err != nil {
-			log.Printf("cannot json encode payload request: %v", err)
+			errors = append(errors, err.Error())
+			var e = formatHttpErrors(http.StatusInternalServerError, errors)
+			e.writeErrors(w)
+			return
 		}
 	}
 }
@@ -283,11 +301,6 @@ func (s *HTTPServer) handleGetPayloadParameters(w http.ResponseWriter, r *http.R
 func (s *HTTPServer) handleGetNodeIpxe(w http.ResponseWriter, r *http.Request) {
 	var errors []string
 	macAddress := chi.URLParam(r, "macAddress")
-	if macAddress == "" || strings.ContainsRune(macAddress, '/') {
-		http.NotFound(w, r)
-		return
-	}
-
 	macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
 
 	// if query includes a hostname instead of full macAddress
@@ -297,10 +310,8 @@ func (s *HTTPServer) handleGetNodeIpxe(w http.ResponseWriter, r *http.Request) {
 
 	if len(macAddress) != 12 && len(macAddress) != 7 {
 		errors = append(errors, "Invalid mac_address")
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
@@ -321,48 +332,55 @@ func (s *HTTPServer) handleGetNodeIpxe(w http.ResponseWriter, r *http.Request) {
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "\t")
 		if err := enc.Encode(parameters); err != nil {
-			log.Printf("cannot json encode payload request: %v", err)
+			errors = append(errors, err.Error())
+			var e = formatHttpErrors(http.StatusInternalServerError, errors)
+			e.writeErrors(w)
+			return
 		}
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "\t")
 		if err := enc.Encode(parameters); err != nil {
-			log.Printf("cannot json encode payload request: %v", err)
+			errors = append(errors, err.Error())
+			var e = formatHttpErrors(http.StatusInternalServerError, errors)
+			e.writeErrors(w)
+			return
 		}
 	}
 }
 
 func (s *HTTPServer) handlePutNodeIpxe(w http.ResponseWriter, r *http.Request) {
+	var errors []string
 	if r.Header.Get("Content-type") != "application/json" {
-		w.WriteHeader(http.StatusUnsupportedMediaType)
-		w.Write([]byte("415 - Unsupported Media Type. Only application/json content-type allowed"))
+		var e = formatHttpErrors(http.StatusUnsupportedMediaType, errors)
+		e.writeErrors(w)
 		return
 	}
 
 	defer r.Body.Close()
 	var indc *ipxe.IpxeNodeDbConfig
 	var iitt *ipxe.IpxeImageTagType
-	var errors []string
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&indc); err != nil {
-		errors = append(errors, fmt.Sprintf(`cannot json decode IpxeNodeDbConfig request: %v`, err))
-	} else {
-		if indc.ImageTag == "" {
-			errors = append(errors, "ImageTag is missing.")
-		}
-		if indc.ImageType == "" {
-			errors = append(errors, "ImageType is missing.")
-		}
-		if indc.MacAddress == "" {
-			errors = append(errors, "MacAddress is missing.")
-		}
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
+		return
+	}
+
+	if indc.ImageTag == "" {
+		errors = append(errors, "ImageTag is missing.")
+	}
+	if indc.ImageType == "" {
+		errors = append(errors, "ImageType is missing.")
+	}
+	if indc.MacAddress == "" {
+		errors = append(errors, "MacAddress is missing.")
 	}
 	if len(errors) > 0 {
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
@@ -374,12 +392,9 @@ func (s *HTTPServer) handlePutNodeIpxe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(indc.MacAddress) != 12 && len(indc.MacAddress) != 7 {
-		var errors []string
 		errors = append(errors, "Invalid mac_address")
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
@@ -393,20 +408,16 @@ func (s *HTTPServer) handlePutNodeIpxe(w http.ResponseWriter, r *http.Request) {
 	if !containsImageTagType(images, *iitt) {
 		errors = append(errors, "Image doesn't exist")
 		errors = append(errors, fmt.Sprintf(`Available Images: %v`, images))
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
 	config, err := s.ipxe.UpdateNodeImage(r.Context(), indc)
 	if err != nil {
 		errors = append(errors, err.Error())
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -414,7 +425,10 @@ func (s *HTTPServer) handlePutNodeIpxe(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "\t")
 	if err := enc.Encode(config); err != nil {
-		log.Printf("cannot json encode image response: %v", err)
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
+		return
 	}
 }
 
@@ -424,52 +438,54 @@ func (s *HTTPServer) handleGetIpxeImages(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *HTTPServer) handlePutIpxeImages(w http.ResponseWriter, r *http.Request) {
+	var errors []string
 	log.Printf("Request Host: %s", r.Host)
 	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
 	log.Printf("Request RequestURI: %s", r.RequestURI)
 
 	if r.Header.Get("Content-type") != "application/json" {
-		w.WriteHeader(http.StatusUnsupportedMediaType)
-		w.Write([]byte("415 - Unsupported Media Type. Only application/json content-type allowed"))
+		var e = formatHttpErrors(http.StatusUnsupportedMediaType, errors)
+		e.writeErrors(w)
 		return
 	}
+
 	defer r.Body.Close()
+
 	var ic *ipxe.IpxeDbConfig
-	var errors []string
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&ic); err != nil {
-		errors = append(errors, fmt.Sprintf(`cannot json decode IpxeDbConfig request: %v`, err))
-	} else {
-		if ic.ImageName == "" {
-			errors = append(errors, "ImageName is missing.")
-		}
-		if ic.ImageCmdline == "" {
-			errors = append(errors, "ImageCmdline is missing.")
-		}
-		if ic.ImageBucket == "" {
-			errors = append(errors, "ImageBucket is missing.")
-		}
-		if ic.ImageTag == "" {
-			errors = append(errors, "ImageTag is missing.")
-		}
-		if ic.ImageType == "" {
-			errors = append(errors, "ImageType is missing.")
-		}
-	}
-	if len(errors) > 0 {
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
+
+	if ic.ImageName == "" {
+		errors = append(errors, "ImageName is missing.")
+	}
+	if ic.ImageCmdline == "" {
+		errors = append(errors, "ImageCmdline is missing.")
+	}
+	if ic.ImageBucket == "" {
+		errors = append(errors, "ImageBucket is missing.")
+	}
+	if ic.ImageTag == "" {
+		errors = append(errors, "ImageTag is missing.")
+	}
+	if ic.ImageType == "" {
+		errors = append(errors, "ImageType is missing.")
+	}
+	if len(errors) > 0 {
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
+		return
+	}
+
 	config, err := s.ipxe.CreateIpxeImage(r.Context(), ic)
 	if err != nil {
 		errors = append(errors, err.Error())
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -477,29 +493,34 @@ func (s *HTTPServer) handlePutIpxeImages(w http.ResponseWriter, r *http.Request)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "\t")
 	if err := enc.Encode(config); err != nil {
-		log.Printf("cannot json encode payload response: %v", err)
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
+		return
 	}
 }
 
 func (s *HTTPServer) handleDeleteIpxeImages(w http.ResponseWriter, r *http.Request) {
+	var errors []string
 	log.Printf("Request Host: %s", r.Host)
 	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
 	log.Printf("Request RequestURI: %s", r.RequestURI)
 
 	if r.Header.Get("Content-type") != "application/json" {
-		w.WriteHeader(http.StatusUnsupportedMediaType)
-		w.Write([]byte("415 - Unsupported Media Type. Only application/json content-type allowed"))
+		var e = formatHttpErrors(http.StatusUnsupportedMediaType, errors)
+		e.writeErrors(w)
 		return
 	}
 	defer r.Body.Close()
 	var iddc *ipxe.IpxeImageTagType
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&iddc); err != nil {
-		log.Printf("cannot json decode IpxeDbConfig request: %v", err)
-		http.Error(w, fmt.Sprintf(`%s - failed to decode %s`, http.StatusText(http.StatusInternalServerError), err), http.StatusInternalServerError)
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
-	var errors []string
+
 	if iddc.ImageTag == "" {
 		errors = append(errors, "ImageTag is missing.")
 	}
@@ -507,42 +528,43 @@ func (s *HTTPServer) handleDeleteIpxeImages(w http.ResponseWriter, r *http.Reque
 		errors = append(errors, "ImageType is missing.")
 	}
 	if len(errors) > 0 {
-		http.Error(w, fmt.Sprintf(`%s - %s`, http.StatusText(http.StatusUnprocessableEntity), errors), http.StatusUnprocessableEntity)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
+
 	config, err := s.ipxe.DeleteIpxeImage(r.Context(), iddc)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`%s - %s`, http.StatusText(http.StatusInternalServerError), err), http.StatusInternalServerError)
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
 		return
 	}
-	// TODO: Add to database
+
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "\t")
 	if err := enc.Encode(config); err != nil {
-		log.Printf("cannot json encode payload request: %v", err)
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
+		return
 	}
 }
 
 func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Request) {
-	macAddress := chi.URLParam(r, "macAddress")
-	if macAddress == "" || strings.ContainsRune(macAddress, '/') {
-		http.NotFound(w, r)
-		return
-	}
+	var errors []string
 
+	macAddress := chi.URLParam(r, "macAddress")
 	macAddress = strings.ToLower(macAddress)
 	macAddress = strings.Replace(macAddress, ":", "", -1)
 	macAddress = strings.Replace(macAddress, "%3a", "", -1)
 
 	if len(macAddress) != 12 {
-		var errors []string
 		errors = append(errors, "Invalid mac_address")
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
@@ -551,7 +573,10 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 	log.Printf("Request RequestURI: %s", r.RequestURI)
 	ipxeTemplate, err := s.ipxe.GetIpxeConfigTemplate(r.Context())
 	if err != nil {
-		log.Printf("handleGetNodeIpxeTemplate: error getting template: %v", err)
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
+		return
 	}
 
 	assignedIpxeConfig, err := s.ipxe.GetNodeIpxeConfig(r.Context(), macAddress)
@@ -579,7 +604,7 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 		}
 		log.Printf("Adding defaulted node_images entry: %v", defaultNodeIpxeDbConfig)
 		if err := s.ipxe.CreateNodeIpxeConfig(r.Context(), defaultNodeIpxeDbConfig); err != nil {
-			log.Print(err.Error())
+			log.Printf("CreateNodeIpxeConfig: %s", err.Error())
 		}
 		s.ipxe.SetHostname(r.Context(), defaultNodeIpxeConfig, macAddress)
 		ipxeTemplate.Execute(w, defaultNodeIpxeConfig)
@@ -592,6 +617,7 @@ func (s *HTTPServer) handleGetNodeIpxeTemplate(w http.ResponseWriter, r *http.Re
 // Accepts an imageName
 // Uses ipxeDefaultBucket to get presigned url for image
 func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *http.Request) {
+	var errors []string
 	imageName := chi.URLParam(r, "imageName")
 	bucket := ""
 	lifetimeSecs := int64(900)
@@ -608,15 +634,25 @@ func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *h
 	case err == context.Canceled, err == context.DeadlineExceeded:
 		return
 	case err != nil:
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		log.Println(err)
-	case imageInitrdUrlHttps == "":
-		http.Error(w, "imageInitrdUrlHttps not found", http.StatusNotFound)
-	case imageKernelUrlHttps == "":
-		http.Error(w, "imageKernelUrlHttps not found", http.StatusNotFound)
-	case imageRootFsUrlHttps == "":
-		http.Error(w, "imageRootFsUrlHttps not found", http.StatusNotFound)
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
+		return
 	default:
+		if imageInitrdUrlHttps == "" {
+			errors = append(errors, "imageInitrdUrlHttps not found")
+		}
+		if imageKernelUrlHttps == "" {
+			errors = append(errors, "imageInitrdUrlHttps not found")
+		}
+		if imageRootFsUrlHttps == "" {
+			errors = append(errors, "imageRootFsUrlHttps not found")
+		}
+		if len(errors) > 0 {
+			var e = formatHttpErrors(http.StatusBadRequest, errors)
+			e.writeErrors(w)
+			return
+		}
 		w.Header().Set("Content-Type", "application/text")
 		w.Write([]byte("imageInitrdUrlHttps: " + imageInitrdUrlHttps))
 		w.Write([]byte("\n"))
