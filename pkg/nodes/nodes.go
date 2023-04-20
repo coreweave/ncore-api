@@ -5,9 +5,9 @@ import (
 )
 
 type Node struct {
-	MacAddress string
-	Hostname   string
-	IpAddress  string
+	MacAddress string `json:"mac_address"`
+	Hostname   string `json:"hostname"`
+	IpAddress  string `json:"ip_address"`
 }
 
 // Update nodes stats by provided data payload.
