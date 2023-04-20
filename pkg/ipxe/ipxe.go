@@ -54,16 +54,6 @@ func (ic *IpxeConfig) dto() *IpxeConfig {
 	}
 }
 
-func (idc *IpxeDbConfig) dto() *IpxeDbConfig {
-	return &IpxeDbConfig{
-		ImageName:    idc.ImageName,
-		ImageBucket:  idc.ImageBucket,
-		ImageTag:     idc.ImageTag,
-		ImageType:    idc.ImageType,
-		ImageCmdline: idc.ImageCmdline,
-	}
-}
-
 type IpxeImageTagType struct {
 	ImageTag  string `json:"image_tag"`
 	ImageType string `json:"image_type"`
