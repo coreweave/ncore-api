@@ -6,15 +6,15 @@ import (
 
 // NodePayload with directory for mac_address.
 type NodePayload struct {
-	PayloadId        string
-	PayloadDirectory string
-	MacAddress       string
+	PayloadId        string `json:"payload_id"`
+	PayloadDirectory string `json:"payload_directory"`
+	MacAddress       string `json:"mac_address"`
 }
 
 // NodePayload payloads.node_payloads entry for mac_address.
 type NodePayloadDb struct {
-	PayloadId  string
-	MacAddress string
+	PayloadId  string `json:"payload_id"`
+	MacAddress string `json:"mac_address"`
 }
 
 // Payload for payload_id.
