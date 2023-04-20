@@ -9,32 +9,32 @@ import (
 )
 
 type IpxeConfig struct {
-	ImageName           string
-	ImageBucket         string
-	ImageTag            string
-	ImageType           string
-	ImageInitrdUrlHttp  string
-	ImageInitrdUrlHttps string
-	ImageKernelUrlHttp  string
-	ImageKernelUrlHttps string
-	ImageRootFsUrlHttp  string
-	ImageRootFsUrlHttps string
-	ImageCmdline        string
-	Hostname            string
+	ImageName           string `json:"image_name"`
+	ImageBucket         string `json:"image_bucket"`
+	ImageTag            string `json:"image_tag"`
+	ImageType           string `json:"image_type"`
+	ImageInitrdUrlHttp  string `json:"image_initrd_url_http"`
+	ImageInitrdUrlHttps string `json:"image_initrd_url_https"`
+	ImageKernelUrlHttp  string `json:"image_kernel_url_http"`
+	ImageKernelUrlHttps string `json:"image_kernel_url_https"`
+	ImageRootFsUrlHttp  string `json:"image_root_fs_url_http"`
+	ImageRootFsUrlHttps string `json:"image_root_fs_https"`
+	ImageCmdline        string `json:"image_cmdline"`
+	Hostname            string `json:"hostname"`
 }
 
 type IpxeNodeDbConfig struct {
-	ImageTag   string
-	ImageType  string
-	MacAddress string
+	ImageTag   string `json:"image_tag"`
+	ImageType  string `json:"image_type"`
+	MacAddress string `json:"mac_address"`
 }
 
 type IpxeDbConfig struct {
-	ImageName    string
-	ImageBucket  string
-	ImageTag     string
-	ImageType    string
-	ImageCmdline string
+	ImageName    string `json:"image_name"`
+	ImageBucket  string `json:"image_bucket"`
+	ImageTag     string `json:"image_tag"`
+	ImageType    string `json:"image_type"`
+	ImageCmdline string `json:"image_cmdline"`
 }
 
 func (ic *IpxeConfig) dto() *IpxeConfig {
@@ -65,8 +65,8 @@ func (idc *IpxeDbConfig) dto() *IpxeDbConfig {
 }
 
 type IpxeImageTagType struct {
-	ImageTag  string
-	ImageType string
+	ImageTag  string `json:"image_tag"`
+	ImageType string `json:"image_type"`
 }
 
 func (s *Service) SetHostname(ctx context.Context, ic *IpxeConfig, macAddress string) *IpxeConfig {
