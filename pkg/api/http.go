@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/coreweave/ncore-api/pkg/ipxe"
+	"github.com/coreweave/ncore-api/pkg/nodes"
 	"github.com/coreweave/ncore-api/pkg/payloads"
 	"github.com/go-chi/chi/v5"
 )
@@ -55,10 +56,11 @@ func containsImageTagType(images []ipxe.IpxeImageTagType, iitt ipxe.IpxeImageTag
 }
 
 // NewHTTPServer creates an HTTPServer for the API.
-func NewHTTPServer(i *ipxe.Service, p *payloads.Service) http.Handler {
+func NewHTTPServer(i *ipxe.Service, p *payloads.Service, n *nodes.Service) http.Handler {
 	s := &HTTPServer{
 		ipxe:     i,
 		payloads: p,
+		nodes:    n,
 		router:   chi.NewRouter(),
 	}
 	s.router.Get("/", s.handleGetRoot)
@@ -77,6 +79,9 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service) http.Handler {
 		r.Delete("/images/", s.handleDeleteIpxeImages)
 		r.Get("/s3/{imageName}", s.handleGetIpxeImagePresignedUrls)
 	})
+	s.router.Route("/api/v2/nodes", func(r chi.Router) {
+		r.Put("/{macAddress}/heartbeat", s.handlePutNodesHeartbeat)
+	})
 	return s.router
 }
 
@@ -84,6 +89,7 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service) http.Handler {
 type HTTPServer struct {
 	ipxe     *ipxe.Service
 	payloads *payloads.Service
+	nodes    *nodes.Service
 	router   *chi.Mux
 }
 
@@ -660,4 +666,65 @@ func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *h
 		w.Write([]byte("\n"))
 		w.Write([]byte("imageRootFsUrlHttps: " + imageRootFsUrlHttps))
 	}
+}
+
+func (s *HTTPServer) handlePutNodesHeartbeat(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Content-type") != "application/json" {
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		w.Write([]byte("415 - Unsupported Media Type. Only application/json content-type allowed"))
+		return
+	}
+	var errors []string
+	macAddress := chi.URLParam(r, "macAddress")
+
+	macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
+
+	if len(macAddress) != 12 {
+		errors = append(errors, "Invalid mac_address")
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
+		return
+	}
+
+	defer r.Body.Close()
+	var node *nodes.Node
+
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&node); err != nil {
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
+		return
+	}
+
+	if len(errors) > 0 {
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
+		return
+	}
+
+	node.MacAddress = strings.Replace(strings.ToLower(node.MacAddress), ":", "", -1)
+
+	if len(node.MacAddress) != 12 {
+		errors = append(errors, "Invalid mac_address")
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
+		return
+	}
+
+	n, err := s.nodes.UpdateNodeStats(r.Context(), node)
+	if err != nil {
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(n); err != nil {
+		log.Printf("cannot json encode payload response: %v", err)
+	}
+
 }
