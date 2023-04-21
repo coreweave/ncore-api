@@ -635,6 +635,12 @@ func (s *HTTPServer) handleGetIpxeImagePresignedUrls(w http.ResponseWriter, r *h
 	log.Printf("Request RemoteAddr: %s", r.RemoteAddr)
 	log.Printf("Request RequestURI: %s", r.RequestURI)
 
+	if r.Header.Get("Content-type") != "application/json" {
+		var e = formatHttpErrors(http.StatusUnsupportedMediaType, errors)
+		e.writeErrors(w)
+		return
+	}
+
 	imageInitrdUrlHttps, imageKernelUrlHttps, imageRootFsUrlHttps, err := s.ipxe.GetIpxeImagePresignedUrls(bucket, imageName, lifetimeSecs)
 	switch {
 	case err == context.Canceled, err == context.DeadlineExceeded:
@@ -677,19 +683,12 @@ func (s *HTTPServer) handlePutNodesHeartbeat(w http.ResponseWriter, r *http.Requ
 	var errors []string
 	macAddress := chi.URLParam(r, "macAddress")
 
-	if macAddress == "" || strings.ContainsRune(macAddress, '/') {
-		http.NotFound(w, r)
-		return
-	}
-
 	macAddress = strings.Replace(strings.ToLower(macAddress), ":", "", -1)
 
 	if len(macAddress) != 12 {
 		errors = append(errors, "Invalid mac_address")
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
@@ -698,45 +697,32 @@ func (s *HTTPServer) handlePutNodesHeartbeat(w http.ResponseWriter, r *http.Requ
 
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&node); err != nil {
-		errors = append(errors, fmt.Sprintf(`cannot json decode Node request: %v`, err))
-	} else {
-		if node.MacAddress == "" {
-			errors = append(errors, "MacAddress is missing.")
-		}
-		if node.Hostname == "" {
-			errors = append(errors, "Hostname is missing.")
-		}
-		if node.IpAddress == "" {
-			errors = append(errors, "IpAddress is missing.")
-		}
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
+		return
 	}
+
 	if len(errors) > 0 {
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
 	node.MacAddress = strings.Replace(strings.ToLower(node.MacAddress), ":", "", -1)
 
 	if len(node.MacAddress) != 12 {
-		var errors []string
-		errors = append(errors, "Invalid MacAddress")
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		errors = append(errors, "Invalid mac_address")
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
 		return
 	}
 
 	n, err := s.nodes.UpdateNodeStats(r.Context(), node)
 	if err != nil {
 		errors = append(errors, err.Error())
-		errorsJson := &jsonErrors{
-			Errors: errors,
-		}
-		errorsJson.writeErrors(w)
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
