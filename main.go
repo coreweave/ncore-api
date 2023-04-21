@@ -13,6 +13,7 @@ import (
 	"github.com/coreweave/ncore-api/pkg/api"
 	"github.com/coreweave/ncore-api/pkg/database"
 	"github.com/coreweave/ncore-api/pkg/ipxe"
+	"github.com/coreweave/ncore-api/pkg/nodes"
 	"github.com/coreweave/ncore-api/pkg/payloads"
 	"github.com/coreweave/ncore-api/pkg/postgres"
 	"github.com/coreweave/ncore-api/pkg/s3"
@@ -96,6 +97,13 @@ func main() {
 	}
 	defer pgPoolIpxe.Close()
 
+	nodesPGConfig := newPGConfigFromEnv("NODES")
+	pgPoolNodes, err := database.NewPGXPool(context.Background(), nodesPGConfig.connString(), &database.PGXStdLogger{}, pgxLogLevel)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer pgPoolNodes.Close()
+
 	log.Printf("s3Host: %v", s3Host)
 	s3Svc := s3.NewClient(s3Host)
 	presignClient := s3.NewPresigner(*s3Svc)
@@ -119,6 +127,11 @@ func main() {
 			ipxeDefaultImageTag,
 			ipxeDefaultImageType,
 			ipxeDefaultBucket,
+		),
+		Nodes: nodes.NewService(
+			&postgres.DB{
+				Postgres: pgPoolNodes,
+			},
 		),
 		HTTPAddress: httpAddr,
 	}
