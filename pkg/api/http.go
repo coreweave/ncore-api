@@ -703,14 +703,7 @@ func (s *HTTPServer) handlePutNodesHeartbeat(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	node.MacAddress = strings.Replace(strings.ToLower(node.MacAddress), ":", "", -1)
-
-	if len(node.MacAddress) != 12 {
-		errors = append(errors, "Invalid mac_address")
-		var e = formatHttpErrors(http.StatusBadRequest, errors)
-		e.writeErrors(w)
-		return
-	}
+	node.MacAddress = macAddress
 
 	n, err := s.nodes.UpdateNodeStats(r.Context(), node)
 	if err != nil {
