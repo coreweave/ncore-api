@@ -632,7 +632,7 @@ func (db *DB) pgErrorCode(err error) error {
 
 func (db *DB) UpdateNodeStats(ctx context.Context, n *nodes.Node) (*nodes.Node, error) {
 	const npd_sql = `
-    INSERT INTO nodes (
+    INSERT INTO node_heartbeat (
 		mac_address, 
 		hostname, 
 		ip_address
