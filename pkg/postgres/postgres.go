@@ -106,7 +106,7 @@ func (db *DB) GetNodePayloads(ctx context.Context, macAddress string) ([]*payloa
       payloads.payload_directory
     FROM "node_payloads"
     JOIN payloads on (node_payloads.payload_id = payloads.payload_id)
-    WHERE mac_address = '%s'
+    WHERE mac_address like '%s'
   `, macAddress) // #nosec G201
 
 	np_rows, err := db.conn(ctx).Query(ctx, np_sql)
@@ -275,7 +275,7 @@ func (db *DB) DeleteNodePayload(ctx context.Context, config *payloads.NodePayloa
 	dp_sql := fmt.Sprintf(`
 		DELETE from node_payloads
 		WHERE
-		    mac_address = '%s'
+		    mac_address like '%s'
         AND
         payload_id = '%s'
     RETURNING (
