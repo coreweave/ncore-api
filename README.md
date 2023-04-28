@@ -68,16 +68,51 @@ go run .
 ### Endpoints
 
 - `/api/v2/payload/<macAddress>`
-  - returns the PayloadId and PayloadDirectory as a json object for the given macAddress
-  - used by [payloads.service](https://github.com/coreweave/ncore-image-tenant/blob/ca696c84cc2d3deb99d3cb61336062d22425a9da/ansible/roles/base/files/systemd/scripts/payloads.sh) in the ncore-image
-  - ex. `curl localhost:8080/api/v2/payload/test_mac`
+  - GET:
+    - returns the first NodePayload as a json object for the given macAddress
+    - used by [payloads.service](https://github.com/coreweave/ncore-image-tenant/blob/ca696c84cc2d3deb99d3cb61336062d22425a9da/ansible/roles/base/files/systemd/scripts/payloads.sh) in the ncore-image
+    - ex. `curl +XGET localhost:8080/api/v2/payload/test_mac`
 
-      ```json
-      {
-              "PayloadId": "kube-worker",
-              "PayloadDirectory": "kube-worker",
-              "MacAddress": "test_mac"
-      }
+        ```json
+        {
+                "PayloadId": "kube-worker",
+                "PayloadDirectory": "kube-worker",
+                "MacAddress": "test_mac"
+        }
+        ```
+
+- `/api/v2/payload/<macAddress>/<payloadId>`
+  - PUT:
+    - inserts/updates the node entry within node_payloads table
+    - returns a list of NodePayload objects assigned as a json list for the given macAddress
+    - used by [kubernetes-node.join](https://github.com/coreweave/kubernetes-node/blob/5f0ea40f0d8eb75931dfefb550c8ddf756bbb238/join.sh), [kubernetes-node.enable_virtualization](https://github.com/coreweave/kubernetes-node/blob/5f0ea40f0d8eb75931dfefb550c8ddf756bbb238/enable_virtualization.sh), [kubernetes-node.disable_virtualization](https://github.com/coreweave/kubernetes-node/blob/5f0ea40f0d8eb75931dfefb550c8ddf756bbb238/disable_virtualization.sh), and [kubernetes-node.set_nvlink](https://github.com/coreweave/kubernetes-node/blob/5f0ea40f0d8eb75931dfefb550c8ddf756bbb238/set_nvlink.sh)
+    - ex: `curl +XPUT localhost:8080/api/v2/payload/test_mac/test_payload`
+
+        ```json
+        [
+          {
+                "PayloadId": "test_payload",
+                "PayloadDirectory": "kube-worker",
+                "MacAddress": "test_mac"
+          }
+        ]
+        ```
+
+  - DELETE
+    - deletes the node entry within node_payloads table
+    - returns a list of NodePayload objects assigned as a json list for the given macAddress
+    - used by [kubernetes-node.leave](https://github.com/coreweave/kubernetes-node/blob/5f0ea40f0d8eb75931dfefb550c8ddf756bbb238/leave.sh)
+    - ex: `curl +XDELETE localhost:8080/api/v2/payload/test_mac/test_payload`
+
+        ```json
+        [
+          {
+                "PayloadId": "not_test_payload",
+                "PayloadDirectory": "kube-worker",
+                "MacAddress": "test_mac"
+          }
+        ]
+        ```
 
 - `/api/v2/payload/config/<payloadId>`
   - returns the payload parameters as a json object for a given payloadId
