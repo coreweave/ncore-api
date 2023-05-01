@@ -2,48 +2,25 @@ package payloads
 
 import (
 	"context"
-	"time"
 )
 
 // NodePayload with directory for mac_address.
 type NodePayload struct {
-	PayloadId        string
-	PayloadDirectory string
-	MacAddress       string
+	PayloadId        string `json:"payload_id"`
+	PayloadDirectory string `json:"payload_directory"`
+	MacAddress       string `json:"mac_address"`
 }
 
 // NodePayload payloads.node_payloads entry for mac_address.
 type NodePayloadDb struct {
-	PayloadId  string
-	MacAddress string
+	PayloadId  string `json:"payload_id"`
+	MacAddress string `json:"mac_address"`
 }
 
 // Payload for payload_id.
 type Payload struct {
 	PayloadId        string
 	PayloadDirectory string
-}
-
-// PayloadSchema for payload_id.
-type PayloadSchema struct {
-	Id              string
-	PayloadSchemaId string
-	ParameterName   string
-	CreatedAt       time.Time
-	ModifiedAt      time.Time
-}
-
-type PayloadParameter struct {
-	Parameter string
-	Value     string
-}
-
-type PayloadParameters struct {
-	Id         string
-	PayloadId  string
-	Parameters map[string]interface{}
-	CreatedAt  time.Time
-	ModifiedAt time.Time
 }
 
 // GetNodePayload returns a NodePayload for mac_address.
