@@ -46,12 +46,13 @@ type PayloadParameters struct {
 	ModifiedAt time.Time
 }
 
-// GetNodePayload returns a NodePayload for mac_address.
-func (s *Service) GetNodePayload(ctx context.Context, macAddress string) (*NodePayload, error) {
+// GetNodePayloads reads all payloads for mac_address and returns them as a list.
+// Returns a list of Payloads
+func (s *Service) GetNodePayloads(ctx context.Context, macAddress string) ([]*NodePayload, error) {
 	if macAddress == "" {
 		return nil, ValidationError{"missing payload macAddress"}
 	}
-	return s.db.GetNodePayload(ctx, macAddress)
+	return s.db.GetNodePayloads(ctx, macAddress)
 }
 
 // GetSubnetDefaultPayload accepts an ip address string and checks if payloads.subnet_default_payloads table
@@ -65,13 +66,13 @@ func (s *Service) GetSubnetDefaultPayload(ctx context.Context, ipAddress string)
 }
 
 // AddNodePayload adds a NodePayload entry.
-// Returns a NodePayload
-func (s *Service) AddNodePayload(ctx context.Context, nodePayloadDb *NodePayloadDb) error {
+// Returns a list of Payloads
+func (s *Service) AddNodePayload(ctx context.Context, nodePayloadDb *NodePayloadDb) ([]*NodePayload, error) {
 	if nodePayloadDb.PayloadId == "" {
-		return ValidationError{"missing nodePayloadDb PayloadId"}
+		return nil, ValidationError{"missing nodePayloadDb PayloadId"}
 	}
 	if nodePayloadDb.MacAddress == "" {
-		return ValidationError{"missing nodePayloadDb payload MacAddress"}
+		return nil, ValidationError{"missing nodePayloadDb payload MacAddress"}
 	}
 
 	return s.db.AddNodePayload(ctx, nodePayloadDb)
@@ -92,8 +93,15 @@ func (s *Service) GetAvailablePayloads(ctx context.Context) []string {
 }
 
 // UpdateNodePayload updates the PayloadId for mac_address.
-func (s *Service) UpdateNodePayload(ctx context.Context, config *NodePayloadDb) (*NodePayloadDb, error) {
+// Returns a list of Payloads
+func (s *Service) UpdateNodePayload(ctx context.Context, config *NodePayloadDb) ([]*NodePayload, error) {
 	return s.db.UpdateNodePayload(ctx, config)
+}
+
+// DeleteNodePayload deletes a NodePayload for mac_address/payload tuple.
+// Returns a list of Payloads
+func (s *Service) DeleteNodePayload(ctx context.Context, config *NodePayloadDb) ([]*NodePayload, error) {
+	return s.db.DeleteNodePayload(ctx, config)
 }
 
 // GetPayloadParameters returns a PayloadSchema for PayloadId.

@@ -66,7 +66,8 @@ func NewHTTPServer(i *ipxe.Service, p *payloads.Service, n *nodes.Service) http.
 	s.router.Get("/", s.handleGetRoot)
 	s.router.Route("/api/v2/payload", func(r chi.Router) {
 		r.Get("/{macAddress}", s.handleGetNodePayload)
-		r.Put("/", s.handlePutNodePayload)
+		r.Put("/{macAddress}/{payloadId}", s.handlePutNodePayload)
+		r.Delete("/{macAddress}/{payloadId}", s.handleDeleteNodePayload)
 		r.Get("/config/{payloadId}", s.handleGetPayloadParameters)
 	})
 	s.router.Route("/api/v2/ipxe", func(r chi.Router) {
@@ -115,7 +116,7 @@ func (s *HTTPServer) handleGetNodePayload(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Printf("Checking node_payloads for macAddress: %s", macAddress)
-	assignedNodePayload, err := s.payloads.GetNodePayload(r.Context(), macAddress)
+	assignedNodePayloads, err := s.payloads.GetNodePayloads(r.Context(), macAddress)
 
 	switch {
 	case err == context.Canceled, err == context.DeadlineExceeded:
@@ -126,12 +127,12 @@ func (s *HTTPServer) handleGetNodePayload(w http.ResponseWriter, r *http.Request
 		var e = formatHttpErrors(http.StatusInternalServerError, errors)
 		e.writeErrors(w)
 		return
-	case assignedNodePayload == nil && len(macAddress) == 7:
+	case assignedNodePayloads == nil && len(macAddress) == 7:
 		errors = append(errors, fmt.Sprintf("payload not found for hostname: %s", macAddress))
 		var e = formatHttpErrors(http.StatusBadRequest, errors)
 		e.writeErrors(w)
 		return
-	case assignedNodePayload == nil:
+	case assignedNodePayloads == nil:
 		// PayloadId, MacAddress missing from payloads.node_payloads
 		// or PayloadId, PayloadDirectory, PayloadSchema missing from payloads.payloads
 		var defaultNodePayload *payloads.NodePayload
@@ -168,47 +169,31 @@ func (s *HTTPServer) handleGetNodePayload(w http.ResponseWriter, r *http.Request
 		}
 		log.Printf("Adding defaulted node_payloads entry: %v", defaultNodePayloadDb)
 
-		if err := s.payloads.AddNodePayload(r.Context(), defaultNodePayloadDb); err != nil {
-			log.Printf("AddNodePayload: %s", err.Error())
-		}
-		w.Header().Set("Content-Type", "application/json")
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "\t")
-		if err := enc.Encode(defaultNodePayload); err != nil {
+		if assignedNodePayloads, err = s.payloads.AddNodePayload(r.Context(), defaultNodePayloadDb); err != nil {
 			errors = append(errors, err.Error())
 			var e = formatHttpErrors(http.StatusInternalServerError, errors)
 			e.writeErrors(w)
 			return
 		}
-	default:
-		w.Header().Set("Content-Type", "application/json")
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "\t")
-		if err := enc.Encode(assignedNodePayload); err != nil {
-			errors = append(errors, err.Error())
-			var e = formatHttpErrors(http.StatusInternalServerError, errors)
-			e.writeErrors(w)
-			return
-		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "\t")
+	// TODO: update to return entire list instead of first element once jq handling is present in scripts
+	if err := enc.Encode(assignedNodePayloads[0]); err != nil {
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
+		return
 	}
 }
 
 func (s *HTTPServer) handlePutNodePayload(w http.ResponseWriter, r *http.Request) {
 	var errors []string
-	if r.Header.Get("Content-type") != "application/json" {
-		var e = formatHttpErrors(http.StatusUnsupportedMediaType, errors)
-		e.writeErrors(w)
-		return
-	}
-
-	defer r.Body.Close()
-	var npd *payloads.NodePayloadDb
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&npd); err != nil {
-		errors = append(errors, err.Error())
-		var e = formatHttpErrors(http.StatusBadRequest, errors)
-		e.writeErrors(w)
-		return
+	npd := payloads.NodePayloadDb{
+		PayloadId:  chi.URLParam(r, "payloadId"),
+		MacAddress: chi.URLParam(r, "macAddress"),
 	}
 
 	if npd.PayloadId == "" {
@@ -247,19 +232,118 @@ func (s *HTTPServer) handlePutNodePayload(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	config, err := s.payloads.UpdateNodePayload(r.Context(), npd)
-	if err != nil {
+	assignedNodePayloads, err := s.payloads.GetNodePayloads(r.Context(), npd.MacAddress)
+
+	switch {
+	case err == context.Canceled, err == context.DeadlineExceeded:
+		// TODO: Add warning log
+		return
+	case err != nil:
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusInternalServerError, errors)
+		e.writeErrors(w)
+		return
+	case assignedNodePayloads == nil:
+		log.Printf("Adding node_payloads entry: %v", npd)
+		assignedNodePayloads, err = s.payloads.AddNodePayload(r.Context(), &npd)
+		if err != nil {
+			errors = append(errors, err.Error())
+			var e = formatHttpErrors(http.StatusInternalServerError, errors)
+			e.writeErrors(w)
+			return
+		}
+	default:
+		found := false
+		for _, payload := range assignedNodePayloads {
+			if payload.PayloadId == npd.PayloadId {
+				log.Printf("Found node_payloads entry: %v", npd)
+				found = true
+				break
+			}
+		}
+		if !found {
+			log.Printf("Updating node_payloads entry: %v", npd)
+			// TODO: update to use s.payloads.AddNodePayload when we decide to allow multiple payloads per node
+			assignedNodePayloads, err = s.payloads.UpdateNodePayload(r.Context(), &npd)
+			if err != nil {
+				errors = append(errors, err.Error())
+				var e = formatHttpErrors(http.StatusInternalServerError, errors)
+				e.writeErrors(w)
+				return
+			}
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(assignedNodePayloads); err != nil {
 		errors = append(errors, err.Error())
 		var e = formatHttpErrors(http.StatusInternalServerError, errors)
 		e.writeErrors(w)
 		return
 	}
+}
+
+func (s *HTTPServer) handleDeleteNodePayload(w http.ResponseWriter, r *http.Request) {
+	var errors []string
+	npd := payloads.NodePayloadDb{
+		PayloadId:  chi.URLParam(r, "payloadId"),
+		MacAddress: chi.URLParam(r, "macAddress"),
+	}
+
+	if npd.PayloadId == "" {
+		errors = append(errors, "PayloadId is missing.")
+	}
+	if npd.MacAddress == "" {
+		errors = append(errors, "MacAddress is missing.")
+	}
+	if len(errors) > 0 {
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
+		return
+	}
+
+	npd.MacAddress = strings.Replace(strings.ToLower(npd.MacAddress), ":", "", -1)
+
+	// if query includes a hostname instead of full macAddress
+	if len(npd.MacAddress) == 7 {
+		npd.MacAddress = "%" + npd.MacAddress[1:]
+	}
+
+	if len(npd.MacAddress) != 12 && len(npd.MacAddress) != 7 {
+		errors = append(errors, "Invalid mac_address")
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
+		return
+	}
+
+	payloads := s.payloads.GetAvailablePayloads(r.Context())
+
+	if !contains(payloads, npd.PayloadId) {
+		errors = append(errors, "PayloadId doesn't exist")
+		errors = append(errors, fmt.Sprintf(`Available Payloads: %v`, payloads))
+		var e = formatHttpErrors(http.StatusBadRequest, errors)
+		e.writeErrors(w)
+		return
+	}
+
+	log.Printf("Deleting node_payloads entry: %v", npd)
+	assignedNodePayloads, err := s.payloads.DeleteNodePayload(r.Context(), &npd)
+
+	if err != nil {
+		errors = append(errors, err.Error())
+		var e = formatHttpErrors(http.StatusNotFound, errors)
+		e.writeErrors(w)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "\t")
-	if err := enc.Encode(config); err != nil {
-		errors = append(errors, err.Error())
+	if err := enc.Encode(assignedNodePayloads); err != nil {
 		var e = formatHttpErrors(http.StatusInternalServerError, errors)
 		e.writeErrors(w)
 		return

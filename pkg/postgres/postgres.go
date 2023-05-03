@@ -95,39 +95,42 @@ func (ic *ipxeDbConfig) dto() *ipxe.IpxeDbConfig {
 	}
 }
 
-// GetPayload returns a Payload.
-// TODO: Convert to return a list of all payloads for a mac
-// TODO: In image always take index 0 of list
-func (db *DB) GetNodePayload(ctx context.Context, macAddress string) (*payloads.NodePayload, error) {
-	var np []nodePayload
+// GetNodePayloads reads all payloads for mac_address and returns them as a list.
+func (db *DB) GetNodePayloads(ctx context.Context, macAddress string) ([]*payloads.NodePayload, error) {
+	var np []*payloads.NodePayload
+
 	np_sql := fmt.Sprintf(`
-			SELECT
-				node_payloads.payload_id,
-				payloads.payload_directory,
-				node_payloads.mac_address
-			FROM "node_payloads"
-			JOIN payloads on (node_payloads.payload_id = payloads.payload_id)
-			WHERE mac_address like '%s' LIMIT 1
-	`, macAddress) // #nosec G201
+    SELECT
+      node_payloads.mac_address,
+      node_payloads.payload_id,
+      payloads.payload_directory
+    FROM "node_payloads"
+    JOIN payloads on (node_payloads.payload_id = payloads.payload_id)
+    WHERE mac_address like '%s'
+  `, macAddress) // #nosec G201
+
 	np_rows, err := db.conn(ctx).Query(ctx, np_sql)
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return nil, err
 	}
-	if err == nil {
-		np, err = pgx.CollectRows(np_rows, pgx.RowToStructByPos[nodePayload])
-	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
 		log.Printf("cannot get node_payload from database: %v\n", err)
 		return nil, errors.New("cannot get node_payload from database")
 	}
-	if len(np) == 0 {
-		return nil, nil
+	if err == nil {
+		defer np_rows.Close()
+		for np_rows.Next() {
+			var p nodePayload
+			err = np_rows.Scan(&p.MacAddress, &p.PayloadId, &p.PayloadDirectory)
+			if err != nil {
+				log.Printf("Error - GetNodePayloads - %v", err)
+			}
+			np = append(np, p.dto())
+		}
+		return np, nil
 	}
 
-	return np[0].dto(), nil
+	return nil, nil
 }
 
 // GetSubnetDefaultPayload accepts an ip address string and checks if payloads.subnet_default_payloads table
@@ -164,7 +167,7 @@ func (db *DB) GetSubnetDefaultPayload(ctx context.Context, ipAddress string) (*p
 	return sdp[0].dto(), nil
 }
 
-func (db *DB) AddNodePayload(ctx context.Context, nodePayloadDb *payloads.NodePayloadDb) error {
+func (db *DB) AddNodePayload(ctx context.Context, nodePayloadDb *payloads.NodePayloadDb) ([]*payloads.NodePayload, error) {
 	const npd_sql = `
     INSERT INTO node_payloads (
       payload_id,
@@ -180,17 +183,22 @@ func (db *DB) AddNodePayload(ctx context.Context, nodePayloadDb *payloads.NodePa
 		nodePayloadDb.MacAddress,
 	); {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return err
+		return nil, err
 	case err != nil:
 		if sqlErr := db.pgErrorCode(err); sqlErr != nil {
 			if sqlErr.Error() == "23505" {
-				return fmt.Errorf("node_payloads entry already exists for macAddress: %s - payloadId: %s", nodePayloadDb.MacAddress, nodePayloadDb.PayloadId)
+				return nil, fmt.Errorf("node_payloads entry already exists for macAddress: %s - payloadId: %s", nodePayloadDb.MacAddress, nodePayloadDb.PayloadId)
 			}
 		}
-		return err
+		return nil, err
+	default:
+		// Query remaining payloads for node to return
+		np, err := db.GetNodePayloads(ctx, nodePayloadDb.MacAddress)
+		if err != nil {
+			return nil, err
+		}
+		return np, nil
 	}
-
-	return nil
 }
 
 // GetAvailablePayloads returns a list of available payloads
@@ -223,8 +231,7 @@ func (db *DB) GetAvailablePayloads(ctx context.Context) []string {
 }
 
 // UpdateNodePayload updates the PayloadId for mac_address.
-func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloadDb) (*payloads.NodePayloadDb, error) {
-	var npd *payloads.NodePayloadDb
+func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloadDb) ([]*payloads.NodePayload, error) {
 	log.Printf("UpdateNodePayload: %v\n", *config)
 	const npd_sql = `
     UPDATE node_payloads
@@ -252,12 +259,48 @@ func (db *DB) UpdateNodePayload(ctx context.Context, config *payloads.NodePayloa
 		log.Printf("UpdateNodePayload: mac_address doesn't exist: %v\n", config)
 		return nil, fmt.Errorf(`mac_address not in database: %v`, *config)
 	default:
-		npd = &payloads.NodePayloadDb{
-			PayloadId:  config.PayloadId,
-			MacAddress: config.MacAddress,
+		// Query assigned payloads for node to return
+		np, err := db.GetNodePayloads(ctx, config.MacAddress)
+		if err != nil {
+			return nil, err
 		}
+		return np, nil
 	}
-	return npd, nil
+}
+
+// DeleteNodePayload deletes the PayloadId for mac_address.
+func (db *DB) DeleteNodePayload(ctx context.Context, config *payloads.NodePayloadDb) ([]*payloads.NodePayload, error) {
+	log.Printf("DeleteNodePayload: %v\n", config)
+	var npd *payloads.NodePayloadDb
+	dp_sql := fmt.Sprintf(`
+		DELETE from node_payloads
+		WHERE
+		    mac_address like '%s'
+        AND
+        payload_id = '%s'
+    RETURNING (
+        payload_id,
+        mac_address
+    )
+	`, config.MacAddress, config.PayloadId) // #nosec G201
+	dp_row := db.conn(ctx).QueryRow(ctx, dp_sql)
+	switch err := dp_row.Scan(&npd); {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return nil, err
+	case err != nil:
+		if sqlErr := db.pgErrorCode(err); sqlErr != nil {
+			return nil, sqlErr
+		}
+		log.Printf("cannot delete node payload: %v\n", err)
+		return nil, fmt.Errorf(`node payload entry not in database: %v`, config)
+	default:
+		// Query remaining payloads for node to return
+		np, err := db.GetNodePayloads(ctx, config.MacAddress)
+		if err != nil {
+			return nil, err
+		}
+		return np, nil
+	}
 }
 
 // GetPayloadParameters returns an interface{} for a payloadId.
@@ -633,16 +676,16 @@ func (db *DB) pgErrorCode(err error) error {
 func (db *DB) UpdateNodeStats(ctx context.Context, n *nodes.Node) (*nodes.Node, error) {
 	const npd_sql = `
     INSERT INTO node_heartbeat (
-		mac_address, 
-		hostname, 
+		mac_address,
+		hostname,
 		ip_address
-	) 
+	)
 	VALUES (
 		$1,
 		$2,
 		$3
 	)
-	ON CONFLICT (mac_address) 
+	ON CONFLICT (mac_address)
 	DO UPDATE set mac_address = $1, hostname = $2, ip_address = $3, last_seen=now();
 	`
 	switch _, err := db.conn(ctx).Exec(ctx, npd_sql,
