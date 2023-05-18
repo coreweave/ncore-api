@@ -1,0 +1,17 @@
+
+databases: #comment out dbs that dont need to be restored
+  - ipxe
+  - nodes
+  - payloads
+
+image:
+  repository: registry.gitlab.com/coreweave/ncore-api
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: develop-2a1d3d42 #will eventually pull master:commit or master:latest when available
+
+postgresql:
+  postgresqlUsername: postgres
+
+restores:
+  enabled: true

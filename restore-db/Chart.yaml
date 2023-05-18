@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ncore-api-db-restoration
+description: CoreWeave job of internal api database restoration
+type: application
+version: 0.1.0
+appVersion: "0.0.1"
