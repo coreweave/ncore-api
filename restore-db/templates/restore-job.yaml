@@ -1,0 +1,48 @@
+{{- if .Values.restores.enabled }}
+{{- range .Values.databases }}
+---
+apiVersion: batch/v1beta1
+kind: Job
+metadata:
+  name: {{ $.Chart.Name }}-{{ . }}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: {{ $.Chart.Name }}-{{ . }}
+        image: {{ $.Values.image.repository }}:migration-{{ $.Values.image.tag }}
+        imagePullPolicy: {{ $.Values.image.pullPolicy }}
+        env:
+          - name: RESTIC_REPOSITORY
+            value: "s3:s3.us-west-004.backblazeb2.com/coreweave-ncore-backups"
+          - name: RESTIC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: restic-backups
+                key: restic-password
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: backblaze-bucket-creds
+                key: AWS_ACCESS_KEY_ID
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: backblaze-bucket-creds
+                key: AWS_SECRET_ACCESS_KEY
+          - name: PGHOST
+            value: ncore-postgresql
+          - name: PGUSER
+            value: {{ $.Values.postgresql.postgresqlUsername }}
+          - name: PGDATABASE
+            value: {{.}}
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgres-role-{{ kebabcase $.Values.postgresql.postgresqlUsername }}
+                key: postgres-password
+        command: ["/bin/sh","-c"]
+        args: ["restic init || true; export LATEST_ID=$(restic snapshots latest -c --latest 1 | grep -Eo '^[0-9a-z]{2,}'); restic tag --remove prerestore-backup --no-lock --host ncore-{{ . }} --tag prerestore-backup; pg_dump --clean --create --password {{ . }} | restic backup --tag prerestore-backup --stdin --host ncore-{{ . }}; restic dump --host ncore-{{ . }} $LATEST_ID stdin | psql"]
+{{- end }}
+{{- end }}
